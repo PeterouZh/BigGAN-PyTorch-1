@@ -6,6 +6,7 @@
  Note that if you don't shuffle the data, the IS of true data will be under-
  estimated as it is label-ordered. By default, the data is not shuffled
  so as to reduce non-determinism. '''
+import os
 import numpy as np
 import torch
 import torch.nn as nn
@@ -46,16 +47,16 @@ def prepare_parser():
     help='Random seed to use.')
   return parser
 
-def run(config):
+def run(config, myargs):
   # Get loader
   config['drop_last'] = False
-  loaders = utils.get_data_loaders(**config)
+  loaders = utils.get_data_loaders(**{**config, 'config': config})
 
   # Load inception net
   net = inception_utils.load_inception_net(parallel=config['parallel'])
   pool, logits, labels = [], [], []
   device = 'cuda'
-  for i, (x, y) in enumerate(tqdm(loaders[0])):
+  for i, (x, y) in enumerate(tqdm(loaders[0], file=myargs.stderr)):
     x = x.to(device)
     with torch.no_grad():
       pool_val, logits_val = net(x)
@@ -77,7 +78,8 @@ def run(config):
   print('Calculating means and covariances...')
   mu, sigma = np.mean(pool, axis=0), np.cov(pool, rowvar=False)
   print('Saving calculated means and covariances to disk...')
-  np.savez(config['dataset'].strip('_hdf5')+'_inception_moments.npz', **{'mu' : mu, 'sigma' : sigma})
+  saved_inception_moments = os.path.expanduser(config.saved_inception_moments)
+  np.savez(saved_inception_moments, **{'mu' : mu, 'sigma' : sigma})
 
 def main():
   # parse command line    

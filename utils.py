@@ -529,6 +529,7 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
 
   # Append /FILENAME.hdf5 to root if using hdf5
   # data_root += '/%s' % root_dict[dataset]
+  data_root = os.path.expanduser(data_root)
   print('Using dataset root location %s' % data_root)
 
   which_dataset = dset_dict[dataset]
@@ -537,7 +538,9 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   image_size = imsize_dict[dataset]
   # For image folder datasets, name of the file where we store the precomputed
   # image locations to avoid having to walk the dirs every time we load.
-  index_filename = os.path.expanduser(kwargs['config']['index_filename'])
+  # index_filename = os.path.expanduser(kwargs['config']['index_filename'])
+  index_filename = os.path.expanduser(
+    kwargs['config'].get('index_filename', 'index_filename'))
   dataset_kwargs = {'index_filename': index_filename}
   # dataset_kwargs = {'index_filename': '%s_imgs.npz' % dataset}
   
