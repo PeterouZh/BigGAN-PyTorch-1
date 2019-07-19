@@ -1,0 +1,7 @@
+ImageNet128_make_hdf5:
+  dataset: I128
+  batch_size: 256
+  num_workers: 12
+  data_root: "~/ZhouPeng/dataset/ILSVRC/Data/CLS-LOC/train"
+  index_filename: '~/.keras/BigGAN-PyTorch-1/I128_imgs.npz'
+  saved_hdf5: "~/.keras/BigGAN-PyTorch-1/ILSVRC128.hdf5"
