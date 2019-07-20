@@ -15,6 +15,7 @@ import time
 import datetime
 import json
 import pickle
+import functools
 from argparse import ArgumentParser
 import animal_hash
 
@@ -235,6 +236,7 @@ def prepare_parser():
   parser.add_argument(
     '--test_every', type=int, default=5000,
     help='Test every X iterations (default: %(default)s)')
+  parser.add_argument('--inception_file', type=str, default='')
   parser.add_argument(
     '--num_inception_images', type=int, default=50000,
     help='Number of samples to compute inception metrics with '
@@ -600,7 +602,7 @@ def seed_rng(seed):
 def update_config_roots(config):
   if config['base_root']:
     print('Pegging all root folders to base root %s' % config['base_root'])
-    for key in ['data', 'weights', 'logs', 'samples']:
+    for key in ['weights', 'logs', 'samples']:
       config['%s_root' % key] = '%s/%s' % (config['base_root'], key)
   return config
 
@@ -610,7 +612,7 @@ def prepare_root(config):
   for key in ['weights_root', 'logs_root', 'samples_root']:
     if not os.path.exists(config[key]):
       print('Making directory %s for %s...' % (config[key], key))
-      os.mkdir(config[key])
+      os.makedirs(config[key], exist_ok=True)
 
 
 # Simple wrapper that applies EMA to a model. COuld be better done in 1.0 using
@@ -828,7 +830,8 @@ Author: Jan Schlüter
 Andy's adds: time elapsed in addition to ETA, makes it possible to add
 estimated time to 1k iters instead of estimated time to completion.
 """
-def progress(items, desc='', total=None, min_delay=0.1, displaytype='s1k'):
+def progress(items, desc='', total=None, min_delay=0.1, displaytype='s1k',
+             file=sys.stdout):
   """
   Returns a generator over `items`, printing the number and percentage of
   items processed and the estimated remaining processing time before yielding
@@ -843,7 +846,7 @@ def progress(items, desc='', total=None, min_delay=0.1, displaytype='s1k'):
     t_now = time.time()
     if t_now - t_last > min_delay:
       print("\r%s%d/%d (%6.2f%%)" % (
-              desc, n+1, total, n / float(total) * 100), end=" ")
+              desc, n+1, total, n / float(total) * 100), end=" ", file=file)
       if n > 0:
         
         if displaytype == 's1k': # minutes/seconds for 1000 iters
@@ -851,14 +854,17 @@ def progress(items, desc='', total=None, min_delay=0.1, displaytype='s1k'):
           t_done = t_now - t_start
           t_1k = t_done / n * next_1000
           outlist = list(divmod(t_done, 60)) + list(divmod(t_1k - t_done, 60))
-          print("(TE/ET1k: %d:%02d / %d:%02d)" % tuple(outlist), end=" ")
+          print("(TE/ET1k: %d:%02d / %d:%02d)" % tuple(outlist),
+                end=" ", file=file)
         else:# displaytype == 'eta':
           t_done = t_now - t_start
           t_total = t_done / n * total
           outlist = list(divmod(t_done, 60)) + list(divmod(t_total - t_done, 60))
-          print("(TE/ETA: %d:%02d / %d:%02d)" % tuple(outlist), end=" ")
+          print("(TE/ETA: %d:%02d / %d:%02d)" % tuple(outlist),
+                end=" ", file=file)
           
-      sys.stdout.flush()
+      # sys.stdout.flush()
+      # file.flush()
       t_last = t_now
     yield item
   t_total = time.time() - t_start

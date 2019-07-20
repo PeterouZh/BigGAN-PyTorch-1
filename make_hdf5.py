@@ -42,7 +42,7 @@ def prepare_parser():
   return parser
 
 
-def run(config):
+def run(config, myargs):
   if 'hdf5' in config['dataset']:
     raise ValueError('Reading from an HDF5 file which you will probably be '
                      'about to overwrite! Override this error only if you know '
@@ -75,7 +75,7 @@ def run(config):
 
   print('Starting to load %s into an HDF5 file with chunk size %i and compression %s...' % (config['dataset'], config['chunk_size'], config['compression']))
   # Loop over train loader
-  for i,(x,y) in enumerate(tqdm(train_loader)):
+  for i,(x,y) in enumerate(tqdm(train_loader, file=myargs.stderr)):
     # Stick X into the range [0, 255] since it's coming from the train loader
     x = (255 * ((x + 1) / 2.0)).byte().numpy()
     # Numpyify y

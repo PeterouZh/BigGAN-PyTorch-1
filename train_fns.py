@@ -159,7 +159,7 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
     user-specified), logs the results, and saves a best_ copy if it's an 
     improvement. '''
 def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
-         experiment_name, test_log):
+         experiment_name, test_log, writer=None):
   print('Gathering inception metrics...')
   if config['accumulate_stats']:
     utils.accumulate_standing_stats(G_ema if config['ema'] and config['use_ema'] else G,
@@ -182,3 +182,9 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
   # Log results to file
   test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean),
                IS_std=float(IS_std), FID=float(FID))
+  if writer:
+    test_metrics = dict(IS_mean=float(IS_mean),
+                        IS_std=float(IS_std),
+                        FID=float(FID))
+    for tag, v in test_metrics.items():
+      writer.add_scalar('test_metrics/%s' % tag, v, state_dict['itr'])

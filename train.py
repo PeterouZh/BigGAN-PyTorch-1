@@ -7,9 +7,11 @@
     Let's go.
 """
 
-import os
+import os, argparse
 import functools
 import math
+import sys
+
 import numpy as np
 from tqdm import tqdm, trange
 
@@ -28,10 +30,12 @@ import utils
 import losses
 import train_fns
 from sync_batchnorm import patch_replication_callback
+from template_lib.utils.modelarts_utils import modelarts_sync_results
+from template_lib.utils import gpu_usage
 
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
-def run(config):
+def run(config, args, myargs):
 
   # Update the config dict as necessary
   # This is for convenience, to add settings derived from the user-specified
@@ -46,6 +50,7 @@ def run(config):
   if config['resume']:
     print('Skipping initialization for training resumption...')
     config['skip_init'] = True
+  config['base_root'] = args.outdir
   config = utils.update_config_roots(config)
   device = 'cuda'
   
@@ -131,10 +136,12 @@ def run(config):
   D_batch_size = (config['batch_size'] * config['num_D_steps']
                   * config['num_D_accumulations'])
   loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
-                                      'start_itr': state_dict['itr']})
+                                      'start_itr': state_dict['itr'],
+                                      'config': config})
 
   # Prepare inception metrics: FID and IS
-  get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'], config['no_fid'])
+  get_inception_metrics = inception_utils.prepare_inception_metrics(
+    config['inception_file'], config['parallel'], config['no_fid'])
 
   # Prepare noise and randomly sampled label arrays
   # Allow for different batch sizes in G
@@ -161,11 +168,15 @@ def run(config):
                               z_=z_, y_=y_, config=config)
 
   print('Beginning training at epoch %d...' % state_dict['epoch'])
+  modelarts_sync_results(args=args, myargs=myargs, join=False)
   # Train for specified number of epochs, although we mostly track G iterations.
   for epoch in range(state_dict['epoch'], config['num_epochs']):    
     # Which progressbar to use? TQDM or my own?
     if config['pbar'] == 'mine':
-      pbar = utils.progress(loaders[0],displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta')
+      pbar = utils.progress(
+        loaders[0],
+        displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta',
+        file=myargs.stdout)
     else:
       pbar = tqdm(loaders[0])
     for i, (x, y) in enumerate(pbar):
@@ -183,17 +194,23 @@ def run(config):
         x, y = x.to(device), y.to(device)
       metrics = train(x, y)
       train_log.log(itr=int(state_dict['itr']), **metrics)
+      for tag, v in metrics.items():
+        myargs.writer.add_scalar('metrics/%s' % tag, v, state_dict['itr'])
       
       # Every sv_log_interval, log singular values
       if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
         train_log.log(itr=int(state_dict['itr']), 
                       **{**utils.get_SVs(G, 'G'), **utils.get_SVs(D, 'D')})
+      if not (state_dict['itr'] % 100):
+        gpu_str = gpu_usage.get_gpu_memory_map()
+        myargs.stderr.write(gpu_str)
 
       # If using my progbar, print metrics.
       if config['pbar'] == 'mine':
-          print(', '.join(['itr: %d' % state_dict['itr']] 
-                           + ['%s : %+4.3f' % (key, metrics[key])
-                           for key in metrics]), end=' ')
+        print(', '.join(['itr: %d' % state_dict['itr']]
+                        + ['%s : %+4.3f' % (key, metrics[key])
+                           for key in metrics]), end=' ', file=myargs.stdout)
+        myargs.stdout.flush()
 
       # Save weights and copies as configured at specified interval
       if not (state_dict['itr'] % config['save_every']):
@@ -204,6 +221,7 @@ def run(config):
             G_ema.eval()
         train_fns.save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y, 
                                   state_dict, config, experiment_name)
+        modelarts_sync_results(args=args, myargs=myargs, join=False)
 
       # Test every specified interval
       if not (state_dict['itr'] % config['test_every']):
@@ -211,9 +229,12 @@ def run(config):
           print('Switchin G to eval mode...')
           G.eval()
         train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
-                       get_inception_metrics, experiment_name, test_log)
+                       get_inception_metrics, experiment_name, test_log,
+                       writer=myargs.writer)
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
+  # End training
+  modelarts_sync_results(args=args, myargs=myargs, join=True)
 
 
 def main():
@@ -221,7 +242,12 @@ def main():
   parser = utils.prepare_parser()
   config = vars(parser.parse_args())
   print(config)
-  run(config)
+  args = argparse.Namespace(outdir='results/tmp')
+  myargs = argparse.Namespace(stdout=sys.stdout)
+  run(config, args, myargs)
 
 if __name__ == '__main__':
   main()
+
+
+

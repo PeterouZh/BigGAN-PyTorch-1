@@ -13,7 +13,7 @@
 '''    
 import numpy as np
 from scipy import linalg # For numpy FID
-import time
+import time, os
 
 import torch
 import torch.nn as nn
@@ -271,13 +271,14 @@ def load_inception_net(parallel=False):
 # and iterates until it accumulates config['num_inception_images'] images.
 # The iterator can return samples with a different batch size than used in
 # training, using the setting confg['inception_batchsize']
-def prepare_inception_metrics(dataset, parallel, no_fid=False):
+def prepare_inception_metrics(inception_file, parallel, no_fid=False):
   # Load metrics; this is intentionally not in a try-except loop so that
   # the script will crash here if it cannot find the Inception moments.
   # By default, remove the "hdf5" from dataset
-  dataset = dataset.strip('_hdf5')
-  data_mu = np.load(dataset+'_inception_moments.npz')['mu']
-  data_sigma = np.load(dataset+'_inception_moments.npz')['sigma']
+  # dataset = dataset.strip('_hdf5')
+  inception_file = os.path.expanduser(inception_file)
+  data_mu = np.load(inception_file)['mu']
+  data_sigma = np.load(inception_file)['sigma']
   # Load network
   net = load_inception_net(parallel)
   def get_inception_metrics(sample, num_inception_images, num_splits=10, 

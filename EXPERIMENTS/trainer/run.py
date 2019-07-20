@@ -2,6 +2,8 @@ import os
 import pprint
 from easydict import EasyDict
 
+from . import exe_dict, parser_dict, run_dict
+
 def ImageNet128_make_hdf5(args, myargs):
   import make_hdf5
   parser = make_hdf5.prepare_parser()
@@ -13,7 +15,7 @@ def ImageNet128_make_hdf5(args, myargs):
     setattr(config, k, v)
   config.data_root = os.path.expanduser(config.data_root)
   myargs.logger.info(pprint.pformat(config))
-  make_hdf5.run(config)
+  make_hdf5.run(config, myargs=myargs)
   pass
 
 def ImageNet128_calculate_inception_moments(args, myargs):
@@ -31,5 +33,18 @@ def ImageNet128_calculate_inception_moments(args, myargs):
   pass
 
 
+def train(args, myargs):
+  parser = parser_dict[args.command]()
+  config = vars(parser.parse_args())
+  config = EasyDict(config)
+
+  config1 = getattr(myargs.config, args.command)
+  for k, v in config1.items():
+    setattr(config, k, v)
+  print(config)
+  run_dict[args.command](config, args, myargs)
+  pass
+
 def main(args, myargs):
-  exec('%s(args, myargs)'%args.command)
+  exe = exe_dict[args.command]
+  exec('%s(args, myargs)'%exe)
