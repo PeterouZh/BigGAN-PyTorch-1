@@ -1,6 +1,7 @@
 import os
 import pprint
 from easydict import EasyDict
+from collections import OrderedDict
 
 from . import exe_dict, parser_dict, run_dict
 
@@ -39,6 +40,7 @@ def train(args, myargs):
   config = EasyDict(config)
 
   config1 = getattr(myargs.config, args.command)
+  print(pprint.pformat(OrderedDict(config1)))
   for k, v in config1.items():
     setattr(config, k, v)
   print(config)
