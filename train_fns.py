@@ -92,7 +92,7 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
   return train
 
 
-def wgangp_training_function(G, D, GD, z_, y_, ema, state_dict, config):
+def wgan_gpreal_training_function(G, D, GD, z_, y_, ema, state_dict, config):
   def train(x, y):
     out = {}
     G.optim.zero_grad()
@@ -126,8 +126,14 @@ def wgangp_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         # gpreal
         gpreal_mean = losses.wgan_gpreal_gradient_penalty(
           x=x[counter], dy=y[counter], f=GD)
-        D_loss = (-wd + 10.*gpreal_mean) / \
-                 float(config['num_D_accumulations'])
+        if config.which_train_fn == 'wbgan_gpreal':
+          D_loss = (-wd + 10. * gpreal_mean + \
+                    torch.relu(wd - float(config.bound))) / \
+                   float(config['num_D_accumulations'])
+          out['bound'] = config.bound
+        else:
+          D_loss = (-wd + 10.*gpreal_mean) / \
+                   float(config['num_D_accumulations'])
         D_loss.backward()
         counter += 1
       out['r_logit_mean'] = r_logit_mean.item()

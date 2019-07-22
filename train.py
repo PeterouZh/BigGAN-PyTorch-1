@@ -158,9 +158,9 @@ def run(config, args, myargs):
   if config['which_train_fn'] == 'GAN':
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
                                             ema, state_dict, config)
-  elif config['which_train_fn'] == 'wgangp':
-    train = train_fns.wgangp_training_function(G, D, GD, z_, y_,
-                                               ema, state_dict, config)
+  elif config['which_train_fn'] in ['wgan_gpreal', 'wbgan_gpreal']:
+    train = train_fns.wgan_gpreal_training_function(G, D, GD, z_, y_,
+                                                    ema, state_dict, config)
   # Else, assume debugging and use the dummy train fn
   else:
     train = train_fns.dummy_training_function()
