@@ -1,3 +1,6 @@
+import torch.autograd as autograd
+from torch.autograd import grad
+from torch.autograd import Variable
 import torch
 import torch.nn.functional as F
 
@@ -27,6 +30,50 @@ def loss_hinge_dis(dis_fake, dis_real):
 def loss_hinge_gen(dis_fake):
   loss = -torch.mean(dis_fake)
   return loss
+
+
+def wgan_discriminator_loss(r_logit, f_logit):
+  """
+  d_loss = -wd + gp * 10.0
+  :param r_logit:
+  :param f_logit:
+  :return:
+  """
+  r_logit_mean = r_logit.mean()
+  f_logit_mean = f_logit.mean()
+
+  # Wasserstein-1 Distance
+  # wd = r_logit_mean - f_logit_mean
+  wd = (r_logit - f_logit).mean()
+  D_loss = -wd
+  return r_logit_mean, f_logit_mean, wd, D_loss
+
+
+def compute_grad2(d_out, x_in):
+  batch_size = x_in.size(0)
+  grad_dout = autograd.grad(
+    outputs=d_out.sum(), inputs=x_in,
+    create_graph=True, retain_graph=True, only_inputs=True
+  )[0]
+  grad_dout2 = grad_dout.pow(2)
+  assert (grad_dout2.size() == x_in.size())
+  reg = grad_dout2.view(batch_size, -1).sum(1)
+  reg_mean = reg.mean()
+  return reg, reg_mean
+
+
+def wgan_gpreal_gradient_penalty(x, dy, f):
+  x.requires_grad_()
+  D_real = f(x=x, dy=dy)
+  gpreal, gpreal_mean = compute_grad2(d_out=D_real, x_in=x)
+  return gpreal_mean
+
+
+def wgan_generator_loss(f_logit):
+  G_f_logit_mean = f_logit.mean()
+  G_loss = - G_f_logit_mean
+  return G_f_logit_mean, G_loss
+
 
 # Default to hinge loss
 generator_loss = loss_hinge_gen

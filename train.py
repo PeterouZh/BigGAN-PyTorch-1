@@ -158,6 +158,9 @@ def run(config, args, myargs):
   if config['which_train_fn'] == 'GAN':
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
                                             ema, state_dict, config)
+  elif config['which_train_fn'] == 'wgangp':
+    train = train_fns.wgangp_training_function(G, D, GD, z_, y_,
+                                               ema, state_dict, config)
   # Else, assume debugging and use the dummy train fn
   else:
     train = train_fns.dummy_training_function()
@@ -171,6 +174,7 @@ def run(config, args, myargs):
   modelarts_sync_results(args=args, myargs=myargs, join=False)
   # Train for specified number of epochs, although we mostly track G iterations.
   for epoch in range(state_dict['epoch'], config['num_epochs']):    
+    print('Epoch: %d/%d'%(epoch, config['num_epochs']))
     # Which progressbar to use? TQDM or my own?
     if config['pbar'] == 'mine':
       pbar = utils.progress(
@@ -198,10 +202,11 @@ def run(config, args, myargs):
         myargs.writer.add_scalar('metrics/%s' % tag, v, state_dict['itr'])
       
       # Every sv_log_interval, log singular values
-      if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
+      if (config['sv_log_interval'] > 0) and \
+              (not (state_dict['itr'] % config['sv_log_interval'])):
         train_log.log(itr=int(state_dict['itr']), 
                       **{**utils.get_SVs(G, 'G'), **utils.get_SVs(D, 'D')})
-      if not (state_dict['itr'] % 100):
+      if not (state_dict['itr'] % 100) or i == 0:
         gpu_str = gpu_usage.get_gpu_memory_map()
         myargs.stderr.write(gpu_str)
 

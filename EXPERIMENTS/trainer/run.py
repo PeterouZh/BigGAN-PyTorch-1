@@ -42,8 +42,11 @@ def train(args, myargs):
   config1 = getattr(myargs.config, args.command)
   print(pprint.pformat(OrderedDict(config1)))
   for k, v in config1.items():
+    if not hasattr(config, k):
+      print('=> config does not have attr [%s: %s]' % (k, v))
+
+  for k, v in config1.items():
     setattr(config, k, v)
-  print(config)
   run_dict[args.command](config, args, myargs)
   pass
 

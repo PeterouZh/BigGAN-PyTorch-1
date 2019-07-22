@@ -411,8 +411,11 @@ class G_D(nn.Module):
     self.G = G
     self.D = D
 
-  def forward(self, z, gy, x=None, dy=None, train_G=False, return_G_z=False,
-              split_D=False):              
+  def forward(self, z=None, gy=None, x=None, dy=None, train_G=False, return_G_z=False,
+              split_D=False):
+    if z is None:
+      D_real = self.D(x, dy)
+      return D_real
     # If training G, enable grad tape
     with torch.set_grad_enabled(train_G):
       # Get Generator output given noise
@@ -442,7 +445,11 @@ class G_D(nn.Module):
       # Get Discriminator output
       D_out = self.D(D_input, D_class)
       if x is not None:
-        return torch.split(D_out, [G_z.shape[0], x.shape[0]]) # D_fake, D_real
+        D_fake, D_real = torch.split(D_out, [G_z.shape[0], x.shape[0]]) # D_fake, D_real
+        if return_G_z:
+          return D_fake, D_real, G_z
+        else:
+          return D_fake, D_real
       else:
         if return_G_z:
           return D_out, G_z

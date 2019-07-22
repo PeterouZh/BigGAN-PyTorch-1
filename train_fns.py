@@ -90,6 +90,96 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     # Return G's loss and the components of D's loss.
     return out
   return train
+
+
+def wgangp_training_function(G, D, GD, z_, y_, ema, state_dict, config):
+  def train(x, y):
+    out = {}
+    G.optim.zero_grad()
+    D.optim.zero_grad()
+    # How many chunks to split x and y into?
+    x = torch.split(x, config['batch_size'])
+    y = torch.split(y, config['batch_size'])
+    counter = 0
+
+    # Optionally toggle D and G's "require_grad"
+    if config['toggle_grads']:
+      utils.toggle_grad(D, True)
+      utils.toggle_grad(G, False)
+
+    for step_index in range(config['num_D_steps']):
+      # If accumulating gradients, loop multiple times before an optimizer step
+      D.optim.zero_grad()
+      for accumulation_index in range(config['num_D_accumulations']):
+        z_.sample_()
+        y_.sample_()
+        D_fake, D_real, G_z = GD(z_[:config['batch_size']],
+                                 y_[:config['batch_size']],
+                                 x[counter], y[counter], train_G=False,
+                                 split_D=config['split_D'],
+                                 return_G_z=True)
+
+        # Compute components of D's loss, average them, and divide by
+        # the number of gradient accumulations
+        r_logit_mean, f_logit_mean, wd, _ = \
+          losses.wgan_discriminator_loss(r_logit=D_real, f_logit=D_fake)
+        # gpreal
+        gpreal_mean = losses.wgan_gpreal_gradient_penalty(
+          x=x[counter], dy=y[counter], f=GD)
+        D_loss = (-wd + 10.*gpreal_mean) / \
+                 float(config['num_D_accumulations'])
+        D_loss.backward()
+        counter += 1
+      out['r_logit_mean'] = r_logit_mean.item()
+      out['f_logit_mean'] = f_logit_mean.item()
+      out['wd'] = wd.item()
+      out['gpreal_mean'] = gpreal_mean.mean()
+
+      # Optionally apply ortho reg in D
+      if config['D_ortho'] > 0.0:
+        # Debug print to indicate we're using ortho reg in D.
+        print('using modified ortho reg in D')
+        utils.ortho(D, config['D_ortho'])
+
+      D.optim.step()
+
+    # Optionally toggle "requires_grad"
+    if config['toggle_grads']:
+      utils.toggle_grad(D, False)
+      utils.toggle_grad(G, True)
+
+    # Zero G's gradients by default before training G, for safety
+    G.optim.zero_grad()
+
+    # If accumulating gradients, loop multiple times
+    for accumulation_index in range(config['num_G_accumulations']):
+      z_.sample_()
+      y_.sample_()
+      D_fake = GD(z_, y_, train_G=True, split_D=config['split_D'])
+      G_f_logit_mean, G_loss = losses.wgan_generator_loss(f_logit=D_fake)
+      G_loss = G_loss / float(config['num_G_accumulations'])
+      G_loss.backward()
+      out['G_f_logit_mean'] = G_f_logit_mean.item()
+      out['G_loss'] = G_loss.item()
+
+    # Optionally apply modified ortho reg in G
+    if config['G_ortho'] > 0.0:
+      print(
+        'using modified ortho reg in G')  # Debug print to indicate we're using ortho reg in G
+      # Don't ortho reg shared, it makes no sense. Really we should blacklist any embeddings for this
+      utils.ortho(G, config['G_ortho'],
+                  blacklist=[param for param in G.shared.parameters()])
+    G.optim.step()
+
+    # If we have an ema, update it, regardless of if we test with it or not
+    if config['ema']:
+      ema.update(state_dict['itr'])
+
+    # Return G's loss and the components of D's loss.
+    return out
+
+  return train
+
   
 ''' This function takes in the model, saves the weights (multiple copies if 
     requested), and prepares sample sheets: one consisting of samples given
