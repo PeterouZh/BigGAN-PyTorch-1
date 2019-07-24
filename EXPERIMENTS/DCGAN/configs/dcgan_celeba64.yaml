@@ -1,0 +1,100 @@
+Celeba64:
+  loader:
+    dataset: Celeba64
+    datadir: ~/.keras/celeba/
+    batch_size: 2048
+    shuffle: false
+    num_workers: 6
+    seed: 0
+  saved_inception_moments: '~/.keras/BigGAN-PyTorch-1/Celeba64_inception_moments.npz'
+  parallel: true
+  augment: false
+
+plot_large_batchsize:
+  title: "large batchsize"
+  tag: 'test/FID'
+  use_dump: True
+  ylim:
+    - 0
+    - 400
+  xlim:
+    - 0
+    - 200
+  lines:
+    wgan_gp:
+      tbdir: 'results/DCGAN/test_CelebA64_dcgan_wgan_gp_20190724-08_55_35'
+
+wgan_gp_celeba64:
+  seed: 1234
+  epochs: 200
+  model:
+    z_dim: 100
+    ema_start: 5000
+    parallel: true
+  optimizer:
+    d_lr: 0.0002
+    d_beta1: 0.5
+    d_beta2: 0.999
+    g_lr: 0.0002
+    g_beta1: 0.5
+    g_beta2: 0.999
+  noise:
+    z_mean: 0.
+    z_var: 1.
+    batch_size_train: 4096
+    batch_size_test: 1024
+  inception_metric:
+    saved_inception_moments: '~/.keras/BigGAN-PyTorch-1/Celeba64_inception_moments.npz'
+    num_inception_images: 50000
+  loader:
+    dataset: Celeba64
+    datadir: ~/.keras/celeba/
+    shuffle: true
+    num_workers: 6
+  train_one_epoch:
+    dummy_train: false
+    gp_lambda: 10.
+    n_critic: 1
+    sample_every: 100
+    sample_start_iter: 20000
+  test:
+    use_ema: false
+
+wbgan_gp_celeba64:
+  seed: 1234
+  epochs: 200
+  model:
+    z_dim: 100
+    ema_start: 5000
+    parallel: true
+  optimizer:
+    d_lr: 0.0002
+    d_beta1: 0.5
+    d_beta2: 0.999
+    g_lr: 0.0002
+    g_beta1: 0.5
+    g_beta2: 0.999
+  noise:
+    z_mean: 0.
+    z_var: 1.
+#    batch_size_train: 128
+#    batch_size_test: 128
+    batch_size_train: 4096
+    batch_size_test: 1024
+  inception_metric:
+    saved_inception_moments: '~/.keras/BigGAN-PyTorch-1/Celeba64_inception_moments.npz'
+    num_inception_images: 50000
+  loader:
+    dataset: Celeba64
+    datadir: ~/.keras/celeba/
+    shuffle: true
+    num_workers: 6
+  train_one_epoch:
+    dummy_train: false
+    bound: 0.5
+    gp_lambda: 10.
+    n_critic: 1
+    sample_every: 100
+    sample_start_iter: 20000
+  test:
+    use_ema: false
