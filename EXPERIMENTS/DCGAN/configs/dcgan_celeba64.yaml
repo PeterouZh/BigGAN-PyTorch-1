@@ -21,8 +21,33 @@ plot_large_batchsize:
     - 0
     - 200
   lines:
-    wgan_gp:
+    wgan_gp_4096:
       tbdir: 'results/DCGAN/test_CelebA64_dcgan_wgan_gp_20190724-08_55_35'
+    wbgan_gp_b0.5_4096:
+      tbdir: 'results/DCGAN/test_CelebA64_dcgan_wbgan_gp_20190724-17_26_14'
+    wbgan_gp_b0.5_2048:
+      tbdir: 'results/DCGAN/test_CelebA64_dcgan_wbgan_gp_20190725-10_22_41'
+    wbgan_gp_b0.5_1024:
+      tbdir: 'results/DCGAN/test_CelebA64_dcgan_wbgan_gp_20190725-16_17_42'
+    wbgan_gp_b0.5_512:
+      tbdir: 'results/DCGAN/test_CelebA64_dcgan_wbgan_gp_20190725-20_17_02'
+
+plot_bs128:
+  title: "bs128"
+  tag: 'test/FID'
+  use_dump: True
+  ylim:
+    - 0
+    - 400
+  xlim:
+    - 0
+    - 200
+  lines:
+    wbgan_gp_b10:
+      tbdir: 'results/DCGAN/test_CelebA64_dcgan_wbgan_gp_20190723-21_31_52'
+    wbgan_gp_b0.5:
+      tbdir: 'results/DCGAN/test_CelebA64_dcgan_wbgan_gp_20190724-09_00_56'
+
 
 wgan_gp_celeba64:
   seed: 1234
@@ -79,7 +104,7 @@ wbgan_gp_celeba64:
     z_var: 1.
 #    batch_size_train: 128
 #    batch_size_test: 128
-    batch_size_train: 4096
+    batch_size_train: 512
     batch_size_test: 1024
   inception_metric:
     saved_inception_moments: '~/.keras/BigGAN-PyTorch-1/Celeba64_inception_moments.npz'
@@ -95,6 +120,46 @@ wbgan_gp_celeba64:
     gp_lambda: 10.
     n_critic: 1
     sample_every: 100
+    sample_start_iter: 20000
+  test:
+    use_ema: false
+
+
+wbgan_gp_dist_celeba64:
+  seed: 1234
+  epochs: 200
+  model:
+    z_dim: 100
+    ema_start: 5000
+    parallel: true
+  optimizer:
+    d_lr: 0.0002
+    d_beta1: 0.5
+    d_beta2: 0.999
+    g_lr: 0.0002
+    g_beta1: 0.5
+    g_beta2: 0.999
+  noise:
+    z_mean: 0.
+    z_var: 1.
+#    batch_size_train: 128
+#    batch_size_test: 128
+    batch_size_train: 682
+    batch_size_test: 1024
+  inception_metric:
+    saved_inception_moments: '~/.keras/BigGAN-PyTorch-1/Celeba64_inception_moments.npz'
+    num_inception_images: 50000
+  loader:
+    dataset: Celeba64
+    datadir: ~/.keras/celeba/
+    shuffle: true
+    num_workers: 1
+  train_one_epoch:
+    dummy_train: false
+    bound: 0.5
+    gp_lambda: 10.
+    n_critic: 1
+    sample_every: 10
     sample_start_iter: 20000
   test:
     use_ema: false

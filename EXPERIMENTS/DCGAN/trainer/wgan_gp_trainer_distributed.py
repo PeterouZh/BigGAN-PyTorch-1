@@ -1,12 +1,13 @@
 import torch
 import tqdm
+import torch.distributed as dist
 
 from template_lib.gans import gan_losses
 
-from . import trainer
+from . import trainer_dist
 
 
-class Trainer(trainer.Trainer):
+class Trainer(trainer_dist.Trainer):
   def __init__(self, args, myargs):
     super(Trainer, self).__init__(args, myargs)
 
@@ -16,17 +17,17 @@ class Trainer(trainer.Trainer):
       return
     myargs = self.myargs
     train_dict = self.train_dict
-
-    for i, (imgs, _) in enumerate(tqdm.tqdm(self.data_loader, file=myargs.stdout)):
+    pbar = tqdm.tqdm(self.data_loader, file=myargs.stdout)
+    for i, (imgs, _) in enumerate(pbar):
+      pbar.set_description('rank: %d'%self.args.rank)
       self.G.train()
       self.D.train()
       train_dict['batches_done'] += 1
       self._summary_create()
 
-      imgs = imgs.cuda()
+      imgs = imgs.cuda(self.args.rank)
       bs = imgs.size(0)
-      if bs != self.config.noise.batch_size_train:
-        return
+
       self.z_train.sample_()
       f_imgs = self.G(self.z_train[:bs])
 
@@ -46,7 +47,8 @@ class Trainer(trainer.Trainer):
       gp = gan_losses.wgan_gp_gradient_penalty(
         imgs, f_imgs, self.D, gp_lambda=config.gp_lambda)
 
-      if self.args.command in ['wbgan_gp_celeba64']:
+      if self.args.command in ['wbgan_gp_celeba64',
+                               'wbgan_gp_dist_celeba64']:
         D_loss = -wd + torch.relu(wd - float(config.bound))
         # D_loss = -wd + gp * config.gp_lambda + \
         #          torch.relu(wd - float(config.bound))
@@ -80,7 +82,8 @@ class Trainer(trainer.Trainer):
         # end iter
         self.ema.update(train_dict['batches_done'])
 
-      if i % config.sample_every == 0:
+
+      if i % config.sample_every == 0 and self.args.rank == 0:
         # images
         self._summary_images(imgs=imgs)
         # checkpoint
@@ -89,5 +92,20 @@ class Trainer(trainer.Trainer):
         # summary
         self._summary_scalars()
 
-      elif train_dict['batches_done'] <= config.sample_start_iter:
+      elif train_dict['batches_done'] <= config.sample_start_iter and \
+              self.args.rank == 0:
         self._summary_scalars()
+        pass
+
+    print('End rank: %d'%self.args.rank, file=myargs.stdout)
+    self.average_weights()
+    pass
+
+
+  def average_weights(self):
+    size = float(self.args.world_size)
+    for param in self.G.parameters():
+      dist.all_reduce(param.data, op=dist.ReduceOp.SUM)
+      param.data /= size
+    pass
+

@@ -177,6 +177,59 @@ class Testing_Celeba64_DCGAN(unittest.TestCase):
 
     return
 
+  def test_CelebA64_dcgan_wbgan_gp_dist(self):
+    """
+    Usage:
+        export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
+        export PORT=6111
+        export TIME_STR=1
+        export PYTHONPATH=../submodule:.
+        python -c "import test_DCGAN; \
+          test_DCGAN.Testing_Celeba64_DCGAN().test_CelebA64_dcgan_wbgan_gp_dist()"
+
+    :return:
+    """
+    if 'CUDA_VISIBLE_DEVICES' not in os.environ:
+      os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5'
+    if 'PORT' not in os.environ:
+      os.environ['PORT'] = '6011'
+    if 'TIME_STR' not in os.environ:
+      os.environ['TIME_STR'] = '0'
+
+    # func name
+    outdir = os.path.join('results/DCGAN', sys._getframe().f_code.co_name)
+    myargs = argparse.Namespace()
+
+    def build_args():
+      argv_str = f"""
+            --config DCGAN/configs/dcgan_celeba64.yaml
+            --command wbgan_gp_dist_celeba64
+            --world_size 6
+            --resume False 
+            --resume_path None 
+            --resume_root None 
+            --evaluate False --evaluate_path None
+            """
+      parser = utils.args_parser.build_parser()
+      if len(sys.argv) == 1:
+        args = parser.parse_args(args=argv_str.split())
+      else:
+        args = parser.parse_args()
+      args = utils.config_utils.DotDict(vars(args))
+      return args, argv_str
+
+    args, argv_str = build_args()
+
+    # parse the config json file
+    args = utils.config.process_config(outdir=outdir, config_file=args.config,
+                                       resume_root=args.resume_root, args=args,
+                                       myargs=myargs)
+    from DCGAN.trainer import run
+    run.main(args=args, myargs=myargs)
+    input('End %s' % outdir)
+
+    return
+
 
 class Testing_Celeba64_DCGAN_plot(unittest.TestCase):
 
@@ -219,6 +272,58 @@ class Testing_Celeba64_DCGAN_plot(unittest.TestCase):
         args = parser.parse_args()
       args = utils.config_utils.DotDict(vars(args))
       return args, argv_str
+    args, argv_str = build_args()
+
+    # parse the config json file
+    args = utils.config.process_config(outdir=outdir, config_file=args.config,
+                                       resume_root=args.resume_root, args=args,
+                                       myargs=myargs)
+    from scripts import parse_tensorboard
+    parse_tensorboard.parse_tensorboard(args=args, myargs=myargs)
+    input('End %s' % outdir)
+
+    return
+
+  def test_plot_bs128(self):
+    """
+    Usage:
+        export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
+        export PORT=6111
+        export TIME_STR=1
+        export PYTHONPATH=../submodule:.
+        python -c "import test_DCGAN; \
+          test_DCGAN.Testing_Celeba64_DCGAN_plot().test_plot_bs128()"
+
+    :return:
+    """
+    if 'CUDA_VISIBLE_DEVICES' not in os.environ:
+      os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5'
+    if 'PORT' not in os.environ:
+      os.environ['PORT'] = '6011'
+    if 'TIME_STR' not in os.environ:
+      os.environ['TIME_STR'] = '0'
+
+    # func name
+    outdir = os.path.join('results/DCGAN/plot', sys._getframe().f_code.co_name)
+    myargs = argparse.Namespace()
+
+    def build_args():
+      argv_str = f"""
+            --config DCGAN/configs/dcgan_celeba64.yaml
+            --command plot_bs128
+            --resume False 
+            --resume_path None 
+            --resume_root None 
+            --evaluate False --evaluate_path None
+            """
+      parser = utils.args_parser.build_parser()
+      if len(sys.argv) == 1:
+        args = parser.parse_args(args=argv_str.split())
+      else:
+        args = parser.parse_args()
+      args = utils.config_utils.DotDict(vars(args))
+      return args, argv_str
+
     args, argv_str = build_args()
 
     # parse the config json file
