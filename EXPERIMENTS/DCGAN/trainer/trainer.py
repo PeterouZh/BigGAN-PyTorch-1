@@ -26,7 +26,7 @@ class Trainer(base_trainer.Trainer):
     self.G, self.D, self.G_ema, self.ema = self.model_create()
     self.optimizer_create()
     self.scheduler_create()
-    self.z_sample, self.z_train, self.z_test = self.noise_create()
+    self.noise_create()
 
     # load inception network
     self.inception_metrics = self.inception_metrics_func_create()
@@ -113,7 +113,8 @@ class Trainer(base_trainer.Trainer):
     z_test = gan_utils.z_normal(batch_size=config.batch_size_test,
                                 dim_z=self.config.model.z_dim,
                                 z_mean=config.z_mean, z_var=config.z_var)
-    return z_sample, z_train, z_test
+    self.z_sample, self.z_train, self.z_test = z_sample, z_train, z_test
+    return
 
   def inception_metrics_func_create(self):
     config = self.config.inception_metric

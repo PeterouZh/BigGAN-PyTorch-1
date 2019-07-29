@@ -31,6 +31,11 @@ plot_large_batchsize:
       tbdir: 'results/DCGAN/test_CelebA64_dcgan_wbgan_gp_20190725-16_17_42'
     wbgan_gp_b0.5_512:
       tbdir: 'results/DCGAN/test_CelebA64_dcgan_wbgan_gp_20190725-20_17_02'
+    wbgan_gp_b0.5_4096_dist:
+      tbdir: 'results/DCGAN/test_CelebA64_dcgan_wbgan_gp_dist_20190726-07_44_00'
+    wbgan_gp_b0.5_2048_dist:
+      tbdir: 'results/DCGAN/test_CelebA64_dcgan_wbgan_gp_dist_20190726-20_15_00'
+
 
 plot_bs128:
   title: "bs128"
@@ -144,7 +149,7 @@ wbgan_gp_dist_celeba64:
     z_var: 1.
 #    batch_size_train: 128
 #    batch_size_test: 128
-    batch_size_train: 682
+    batch_size_train: 341
     batch_size_test: 1024
   inception_metric:
     saved_inception_moments: '~/.keras/BigGAN-PyTorch-1/Celeba64_inception_moments.npz'

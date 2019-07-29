@@ -48,15 +48,15 @@ def create_inception_moments(args, myargs):
   np.savez(os.path.expanduser(config.saved_inception_moments),
            **{'mu': mu, 'sigma': sigma})
 
-  def test_Check_MomentFile_Celeba64():
-    old = np.load('/cluster/home/it_stu39/ZhouPeng/code/biggan-pytorch/'
-                  'results/datasets/Celeba_align64_inception_moments.npz')
-    old_mu, old_sigma = old['mu'], old['sigma']
-    new = np.load(os.path.expanduser(
-      '~/.keras/BigGAN-PyTorch-1/Celeba64_inception_moments.npz'))
-    new_mu, new_sigma = new['mu'], new['sigma']
-    err_mu, err_sig = np.sum(new_mu - old_mu), np.sum(new_sigma - old_sigma)
-    pass
+def test_Check_MomentFile_Celeba64():
+  old = np.load('/cluster/home/it_stu39/ZhouPeng/code/biggan-pytorch/'
+                'results/datasets/Celeba_align64_inception_moments.npz')
+  old_mu, old_sigma = old['mu'], old['sigma']
+  new = np.load(os.path.expanduser(
+    '~/.keras/BigGAN-PyTorch-1/Celeba64_inception_moments.npz'))
+  new_mu, new_sigma = new['mu'], new['sigma']
+  err_mu, err_sig = np.sum(new_mu - old_mu), np.sum(new_sigma - old_sigma)
+  pass
 
 
 

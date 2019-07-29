@@ -2,8 +2,11 @@ import os
 import pprint
 from easydict import EasyDict
 from collections import OrderedDict
+from pprint import pformat
 
-from . import exe_dict, parser_dict, run_dict
+from template_lib.utils import seed_utils
+
+from . import exe_dict, parser_dict, run_dict, trainer_dict
 
 def ImageNet128_make_hdf5(args, myargs):
   import make_hdf5
@@ -49,6 +52,30 @@ def train(args, myargs):
     setattr(config, k, v)
   run_dict[args.command](config, args, myargs)
   pass
+
+
+def run_trainer(args, myargs):
+  myargs.config = getattr(myargs.config, args.command)
+  config = myargs.config
+  print(pformat(OrderedDict(config)))
+  trainer = trainer_dict[args.command](args=args, myargs=myargs)
+
+  seed_utils.set_random_seed(config.seed)
+
+  if args.evaluate:
+    trainer.evaluate()
+    return
+
+  if args.resume:
+    trainer.resume()
+  elif args.finetune:
+    trainer.finetune()
+
+  # Load dataset
+  trainer.dataset_load()
+
+  trainer.train()
+
 
 def main(args, myargs):
   exe = exe_dict[args.command]

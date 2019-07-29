@@ -1,0 +1,64 @@
+plot_wbgan_gp_shallow:
+  title: "large batchsize"
+  tag: 'test/FID'
+  use_dump: True
+  ylim:
+    - 0
+    - 100
+  xlim:
+    - 0
+    - 300
+  lines:
+    wbgan_gp_b0.1:
+      tbdir: 'results/DCGAN/test_cifar10_dcgan_wbgan_gp_20190727-22_12_40'
+    wbgan_gp_b0.3:
+      tbdir: 'results/DCGAN/test_cifar10_dcgan_wbgan_gp_20190727-22_14_00'
+    wbgan_gp_b0.5:
+      tbdir: 'results/DCGAN/test_cifar10_dcgan_wbgan_gp_20190727-22_14_38'
+    wbgan_gp_b1:
+      tbdir: 'results/DCGAN/test_cifar10_dcgan_wbgan_gp_20190727-22_15_41'
+    wgan_gp1:
+      tbdir: 'results/DCGAN/test_cifar10_dcgan_wgan_gp_20190727-22_28_00'
+    wgan_gp2:
+      tbdir: 'results/DCGAN/test_cifar10_dcgan_wgan_gp_20190727-22_26_11'
+    wgan_gp3:
+      tbdir: 'results/DCGAN/test_cifar10_dcgan_wgan_gp_20190727-22_29_56'
+
+
+wgan_gp_cifar10:
+  dataset: cifar10
+  dataroot: '~/.keras/cifar10'
+  imageSize: 32
+  cuda: true
+  manualSeed: 13
+  niter: 300
+  loss: wgan_gp
+  use_bound: false
+  inception_metric:
+    saved_inception_moments: '~/.keras/cifar10/cifar10_inception_moments.npz'
+    num_inception_images: 50000
+    batch_size: 256
+  dummy_train: false
+  ngf: 128
+  ndf: 256
+  lr: 1.e-4
+
+
+wbgan_gp_cifar10:
+  dataset: cifar10
+  dataroot: '~/.keras/cifar10'
+  imageSize: 32
+  cuda: true
+  manualSeed: 13
+  niter: 300
+  loss: wgan_gp
+  use_bound: true
+  bound: 2
+  inception_metric:
+    saved_inception_moments: '~/.keras/cifar10/cifar10_inception_moments.npz'
+    num_inception_images: 50000
+    batch_size: 256
+  dummy_train: false
+  ngf: 128
+  ndf: 256
+  lr: 1.e-4
