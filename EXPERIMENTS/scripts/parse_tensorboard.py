@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt
 import os
 import pprint
 from collections import OrderedDict
@@ -19,15 +20,19 @@ def parse_tensorboard(args, myargs):
     data_dict[label] = data
 
   matplot = plot_utils.MatPlot()
+  plt.style.use('classic')
   fig, ax = matplot.get_fig_and_ax()
   for label, line in config.lines.items():
     data = data_dict[label]
     ax.plot(data[0], data[1], **{"label": label,
                                  **getattr(line, 'property', {})})
-  ax.legend()
+  ax.legend(loc='best')
   ax.set_ylim(config.ylim)
   ax.set_xlim(config.xlim)
-  ax.set_title(config.title, fontdict={'fontsize': 10})
+  fontdict = {'fontsize': 17}
+  ax.set_xlabel('Epoch', fontdict=fontdict)
+  ax.set_ylabel('FID', fontdict)
+  ax.set_title(config.title, fontdict=fontdict)
 
   fig_name = config.tag.replace('/', '_') + '.png'
   filepath = os.path.join(args.outdir, fig_name)

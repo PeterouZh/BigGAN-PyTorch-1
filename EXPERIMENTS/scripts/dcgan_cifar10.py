@@ -1,4 +1,7 @@
 from __future__ import print_function
+from torch.autograd import grad
+import torch.autograd as autograd
+from torch.autograd import Variable
 import argparse
 import functools
 import os
@@ -33,28 +36,28 @@ def weights_init(m):
 
 
 class Generator(nn.Module):
-  def __init__(self, ngpu, nc=3, nz=100, ngf=64, bias=True):
+  def __init__(self, ngpu, nc=3, nz=100, ngf=64):
     super(Generator, self).__init__()
     self.ngpu = ngpu
     self.main = nn.Sequential(
       # input is Z, going into a convolution
-      nn.ConvTranspose2d(nz, ngf * 8, 4, 1, 0, bias=bias),
+      nn.ConvTranspose2d(nz, ngf * 8, 4, 1, 0, bias=False),
       nn.BatchNorm2d(ngf * 8),
       nn.ReLU(True),
       # state size. (ngf*8) x 4 x 4
-      nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=bias),
+      nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
       nn.BatchNorm2d(ngf * 4),
       nn.ReLU(True),
       # state size. (ngf*4) x 8 x 8
-      nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=bias),
+      nn.ConvTranspose2d(ngf * 4, ngf * 2, 4, 2, 1, bias=False),
       nn.BatchNorm2d(ngf * 2),
       nn.ReLU(True),
       # state size. (ngf*2) x 16 x 16
-      # nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=bias),
-      # nn.BatchNorm2d(ngf),
-      # nn.ReLU(True),
-      nn.ConvTranspose2d(ngf * 2, nc, kernel_size=4, stride=2, padding=1,
-                         bias=bias),
+      nn.ConvTranspose2d(ngf * 2, ngf, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ngf),
+      nn.ReLU(True),
+      nn.ConvTranspose2d(ngf, nc, kernel_size=1, stride=1, padding=0,
+                         bias=False),
       nn.Tanh()
     )
 
@@ -67,28 +70,27 @@ class Generator(nn.Module):
 
 
 class Discriminator(nn.Module):
-  def __init__(self, ngpu, nc=3, ndf=64, bias=True):
+  def __init__(self, ngpu, nc=3, ndf=64):
     super(Discriminator, self).__init__()
     self.ngpu = ngpu
     self.main = nn.Sequential(
       # input is (nc) x 64 x 64
-      nn.Conv2d(nc, ndf, 4, 2, 1, bias=bias),
-      nn.InstanceNorm2d(ndf, affine=True),
+      nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
       nn.LeakyReLU(0.2, inplace=True),
       # state size. (ndf) x 32 x 32
-      nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=bias),
-      nn.InstanceNorm2d(ndf * 2, affine=True),
+      nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ndf * 2),
       nn.LeakyReLU(0.2, inplace=True),
       # state size. (ndf*2) x 16 x 16
-      nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=bias),
-      nn.InstanceNorm2d(ndf * 4, affine=True),
+      nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ndf * 4),
       nn.LeakyReLU(0.2, inplace=True),
       # state size. (ndf*4) x 8 x 8
-      # nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=bias),
-      # nn.InstanceNorm2d(ndf * 8, affine=True),
-      # nn.LeakyReLU(0.2, inplace=True),
+      nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+      nn.BatchNorm2d(ndf * 8),
+      nn.LeakyReLU(0.2, inplace=True),
       # state size. (ndf*8) x 4 x 4
-      nn.Conv2d(ndf * 4, 1, 4, 1, 0, bias=bias),
+      nn.Conv2d(ndf * 8, 1, 2, 2, 0, bias=False),
     )
 
   def forward(self, input):
@@ -218,13 +220,13 @@ def main(opt, args=None, myargs=None):
   ngpu = int(opt.ngpu)
   nz = int(opt.nz)
 
-  netG = Generator(ngpu, ngf=opt.ngf).to(device)
+  netG = Generator(ngpu).to(device)
   netG.apply(weights_init)
   if opt.netG != '':
     netG.load_state_dict(torch.load(opt.netG))
   print(netG)
 
-  netD = Discriminator(ngpu, ndf=opt.ndf).to(device)
+  netD = Discriminator(ngpu).to(device)
   netD.apply(weights_init)
   if opt.netD != '':
     netD.load_state_dict(torch.load(opt.netD))
@@ -241,10 +243,9 @@ def main(opt, args=None, myargs=None):
   # load inception network
   inception_metrics = inception_metrics_func_create(opt)
 
-  pbar = tqdm.tqdm(dataloader, file=myargs.stderr)
+  pbar = tqdm.tqdm(dataloader, file=myargs.stdout)
   step = 0
   for epoch in range(opt.niter):
-    myargs.logger.info('Epoch: %d', epoch)
     if opt.dummy_train:
       pbar = []
     for i, data in enumerate(pbar, 0):
@@ -259,46 +260,125 @@ def main(opt, args=None, myargs=None):
       real = data[0].to(device)
       batch_size = real.size(0)
 
-      d_real = netD(real)
-      d_real_mean = d_real.mean()
-      summary_d['d_real_mean'] = d_real_mean.item()
-
-      noise = torch.randn(batch_size, nz, 1, 1, device=device)
-      fake = netG(noise)
-      d_fake = netD(fake.detach())
-      d_fake_mean = d_fake.mean()
-      summary_d['d_fake_mean'] = d_fake_mean.item()
-
       optimizerD.zero_grad()
       if opt.loss == 'wgan_gp':
-        gan_losses.wgan_gp_gradient_penalty(x=real, y=fake, f=netD,
-                                            gp_lambda=10.,
-                                            retain_graph=True)
+        d_real = netD(real)
+        d_real_mean = d_real.mean()
+        summary_d['d_real_mean'] = d_real_mean.item()
+
+        noise = torch.randn(batch_size, nz, 1, 1, device=device)
+        fake = netG(noise)
+        d_fake = netD(fake.detach())
+        d_fake_mean = d_fake.mean()
+        summary_d['d_fake_mean'] = d_fake_mean.item()
+
+        gp = gan_losses.wgan_gp_gradient_penalty(x=real, y=fake, f=netD,
+                                                 gp_lambda=10.)
+
+        wd = d_real_mean - d_fake_mean
+        summary_wd['wd'] = wd.item()
+        if opt.use_bound:
+          d_loss = -wd + torch.relu(wd - float(opt.bound))
+          summary_wd['bound'] = opt.bound
+        else:
+          d_loss = -wd
+
+        d_loss.backward()
+        optimizerD.step()
+        summary['d_loss'] = d_loss.item()
+
+        ############################
+        # (2) Update G network: maximize log(D(G(z)))
+        ###########################
+        netG.zero_grad()
+        d_fake_g = netD(fake)
+        d_fake_g_mean = d_fake_g.mean()
+        summary_d['d_fake_g_mean'] = d_fake_g_mean.item()
+        g_loss = -d_fake_g_mean
+        g_loss.backward()
+        optimizerG.step()
+        summary['g_loss'] = g_loss.item()
+      elif opt.loss == 'wgan_div':
+        d_real = netD(real)
+        d_real_mean = d_real.mean()
+        summary_d['d_real_mean'] = d_real_mean.item()
+
+        noise = torch.randn(batch_size, nz, 1, 1, device=device)
+        fake = netG(noise)
+        d_fake = netD(fake.detach())
+        d_fake_mean = d_fake.mean()
+        summary_d['d_fake_mean'] = d_fake_mean.item()
+        gp = wgan_div_gradient_penalty(
+          x=real, y=fake, f=netD, gp_lambda=1., backward=True)
+
+        wd = d_fake_mean - d_real_mean
+        # wd = d_real_mean - d_fake_mean
+        summary_wd['wd'] = wd.item()
+        if opt.use_bound:
+          d_loss = -wd + torch.relu(wd - float(opt.bound))
+          summary_wd['bound'] = opt.bound
+        else:
+          d_loss = -wd
+
+        d_loss.backward()
+        optimizerD.step()
+        summary['d_loss'] = d_loss.item()
+
+        ############################
+        # (2) Update G network: maximize log(D(G(z)))
+        ###########################
+        netG.zero_grad()
+        d_fake_g = netD(fake)
+        d_fake_g_mean = d_fake_g.mean()
+        summary_d['d_fake_g_mean'] = d_fake_g_mean.item()
+        g_loss = d_fake_g_mean
+        # g_loss = -d_fake_g_mean
+        g_loss.backward()
+        optimizerG.step()
+        summary['g_loss'] = g_loss.item()
+      elif opt.loss == 'wgan_gpreal':
+        real.requires_grad_()
+        d_real = netD(real)
+        d_real_mean = d_real.mean()
+        summary_d['d_real_mean'] = d_real_mean.item()
+
+        noise = torch.randn(batch_size, nz, 1, 1, device=device)
+        fake = netG(noise)
+        d_fake = netD(fake.detach())
+        d_fake_mean = d_fake.mean()
+        summary_d['d_fake_mean'] = d_fake_mean.item()
+        gp = gan_losses.compute_grad2(
+          d_out=d_real, x_in=real, backward=True, retain_graph=True)
+
+        wd = d_real_mean - d_fake_mean
+        summary_wd['wd'] = wd.item()
+        if opt.use_bound:
+          d_loss = -wd + torch.relu(wd - float(opt.bound))
+          summary_wd['bound'] = opt.bound
+        else:
+          d_loss = -wd
+
+        d_loss.backward()
+        optimizerD.step()
+        summary['d_loss'] = d_loss.item()
+
+        ############################
+        # (2) Update G network: maximize log(D(G(z)))
+        ###########################
+        netG.zero_grad()
+        d_fake_g = netD(fake)
+        d_fake_g_mean = d_fake_g.mean()
+        summary_d['d_fake_g_mean'] = d_fake_g_mean.item()
+        g_loss = -d_fake_g_mean
+        g_loss.backward()
+        optimizerG.step()
+        summary['g_loss'] = g_loss.item()
+
       else:
         assert 0
+      summary['gp'] = gp.item()
 
-      wd = d_real_mean - d_fake_mean
-      summary_wd['wd'] = wd.item()
-      if opt.use_bound:
-        d_loss = -wd + torch.relu(wd - float(opt.bound))
-        summary_wd['bound'] = opt.bound
-      else:
-        d_loss = -wd
-      d_loss.backward()
-      optimizerD.step()
-      summary['d_loss'] = d_loss.item()
 
-      ############################
-      # (2) Update G network: maximize log(D(G(z)))
-      ###########################
-      netG.zero_grad()
-      d_fake_g = netD(fake)
-      d_fake_g_mean = d_fake_g.mean()
-      summary_d['d_fake_g_mean'] = d_fake_g_mean.item()
-      g_loss = -d_fake_g_mean
-      g_loss.backward()
-      optimizerG.step()
-      summary['g_loss'] = g_loss.item()
 
       step += 1
       write_summary(summary, summary_d, summary_wd, writer=myargs.writer,
@@ -326,6 +406,32 @@ def main(opt, args=None, myargs=None):
     # do checkpointing
     torch.save(netG.state_dict(), '%s/netG_epoch.pth' % (args.ckptdir, ))
     torch.save(netD.state_dict(), '%s/netD_epoch.pth' % (args.ckptdir, ))
+
+
+def wgan_div_gradient_penalty(x, y, f, backward=False,
+                              gp_lambda=10., retain_graph=False):
+  # Compute W-div gradient penalty
+  k = 2
+  p = 6
+  device = x.device
+  shape = [x.size(0)] + [1] * (x.dim() - 1)
+  alpha = torch.rand(shape, device=device)
+  z = x + alpha * (y - x)
+
+  # gradient penalty
+  z = Variable(z, requires_grad=True).cuda(device)
+  o = f(z)
+  g = grad(o, z, grad_outputs=torch.ones(o.size(), device=device),
+           create_graph=True)[0].view(z.size(0), -1)
+
+  grad_norm = g.view(g.size(0), -1).pow(2).sum(1) ** (p / 2)
+  div_gp = torch.mean(grad_norm) * k / 2
+
+  if backward:
+    div_gp = gp_lambda * div_gp
+    div_gp.backward(retain_graph=retain_graph)
+  return div_gp
+
 
 def run(args, myargs):
   parser = build_parser()
