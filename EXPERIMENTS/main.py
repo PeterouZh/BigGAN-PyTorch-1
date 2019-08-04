@@ -5,7 +5,7 @@ from easydict import EasyDict
 
 sys.path.insert(0, '../submodule')
 from template_lib import utils
-from template_lib.utils import config, modelarts_utils
+from template_lib.utils import config, modelarts_utils, logging_utils
 
 from TOOLS import calculate_inception_moments
 from DCGAN.trainer import run
@@ -23,6 +23,9 @@ def main():
 
   config.setup_dirs_and_files(args=args)
   config.setup_logger_and_redirect_stdout(args.logfile, myargs)
+  myargs.textlogger = logging_utils.TextLogger(
+    log_root=args.textlogdir, reinitialize=(not args.resume),
+    logstyle='%10.3f')
   print(pprint.pformat(vars(args)))
 
   config.setup_config(
