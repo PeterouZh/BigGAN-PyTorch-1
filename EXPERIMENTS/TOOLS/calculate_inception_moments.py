@@ -45,8 +45,12 @@ def create_inception_moments(args, myargs):
   mu, sigma = np.mean(pool, axis=0), np.cov(pool, rowvar=False)
   print('Saving calculated means and covariances to: %s' \
         %config.saved_inception_moments)
-  np.savez(os.path.expanduser(config.saved_inception_moments),
-           **{'mu': mu, 'sigma': sigma})
+  saved_inception_moments = os.path.expanduser(config.saved_inception_moments)
+  base_dir = os.path.dirname(saved_inception_moments)
+  if not os.path.exists(base_dir):
+    os.makedirs(base_dir)
+  np.savez(saved_inception_moments, **{'mu': mu, 'sigma': sigma})
+
 
 def test_Check_MomentFile_Celeba64():
   old = np.load('/cluster/home/it_stu39/ZhouPeng/code/biggan-pytorch/'

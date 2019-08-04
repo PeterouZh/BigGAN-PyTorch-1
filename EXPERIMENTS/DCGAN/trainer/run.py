@@ -49,6 +49,7 @@ def init_processes(rank, size, args, myargs, backend='nccl'):
   dist.init_process_group(backend, rank=rank, world_size=size)
   train(args, myargs)
 
+
 def train_dist(args, myargs):
   myargs.writer.close()
   size = args.world_size
@@ -62,5 +63,4 @@ def train_dist(args, myargs):
     p.join()
 
 
-def main(args, myargs):
-  exec('%s(args, myargs)'%exe_dict[args.command])
+

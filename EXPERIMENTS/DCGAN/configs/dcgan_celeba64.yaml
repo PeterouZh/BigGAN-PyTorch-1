@@ -2,7 +2,7 @@ Celeba64:
   loader:
     dataset: Celeba64
     datadir: ~/.keras/celeba/
-    batch_size: 2048
+    batch_size: 512
     shuffle: false
     num_workers: 6
     seed: 0

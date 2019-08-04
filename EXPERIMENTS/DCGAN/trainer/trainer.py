@@ -129,6 +129,18 @@ class Trainer(base_trainer.Trainer):
 
     return inception_metrics
 
+  def train(self, ):
+    config = self.config
+    for epoch in range(self.train_dict['epoch_done'], config.epochs):
+      self.logger.info('epoch: [%d/%d]' % (epoch, config.epochs))
+      self.scheduler_step(epoch=epoch)
+      self.train_one_epoch()
+
+      self.train_dict['epoch_done'] += 1
+      # test
+      self.test()
+    self.finalize()
+
   def evaluate(self):
     self.logger.info('Evaluate from: %s', self.args.evaluate_path)
     # load G

@@ -5,7 +5,7 @@ import unittest
 import argparse
 
 from template_lib import utils
-
+os.chdir('..')
 
 class Prepare_data(unittest.TestCase):
 
@@ -15,9 +15,9 @@ class Prepare_data(unittest.TestCase):
         export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
         export PORT=6011
         export TIME_STR=1
-        export PYTHONPATH=../submodule:.
+        export PYTHONPATH=../../submodule:..
         python -c "import test_DCGAN; \
-        test_DCGAN.Prepare_data().test_Calculate_inception_Moments_Celeba64()"
+        test_DCGAN.Prepare_data().test_Calculate_inception_moments_Celeba64()"
 
     :return:
     """
@@ -51,11 +51,9 @@ class Prepare_data(unittest.TestCase):
 
     args, argv_str = build_args()
 
-    # parse the config json file
-    args = utils.config.process_config(outdir=outdir, config_file=args.config,
-                                       resume_root=args.resume_root, args=args,
-                                       myargs=myargs)
-    from DCGAN import calculate_inception_moments
+    args.outdir = outdir
+    args, myargs = utils.config.setup_args_and_myargs(args=args, myargs=myargs)
+    from TOOLS import calculate_inception_moments
     calculate_inception_moments.create_inception_moments(args, myargs)
     input('End %s' % outdir)
     return
@@ -69,6 +67,11 @@ class Prepare_data(unittest.TestCase):
       '~/.keras/BigGAN-PyTorch-1/Celeba64_inception_moments.npz'))
     new_mu, new_sigma = new['mu'], new['sigma']
     err_mu, err_sig = np.sum(new_mu - old_mu), np.sum(new_sigma - old_sigma)
+
+    new1 = np.load(os.path.expanduser(
+      '~/.keras/BigGAN-PyTorch-1/Celeba64_inception_moments.npz1.npz'))
+    new_mu1, new_sigma1 = new1['mu'], new1['sigma']
+    err_mu, err_sig = np.sum(new_mu - new_mu1), np.sum(new_sigma - new_sigma1)
     pass
 
 
@@ -96,7 +99,6 @@ class Testing_Celeba64_DCGAN(unittest.TestCase):
     # func name
     outdir = os.path.join('results/DCGAN', sys._getframe().f_code.co_name)
     myargs = argparse.Namespace()
-
     def build_args():
       argv_str = f"""
             --config DCGAN/configs/dcgan_celeba64.yaml
@@ -113,14 +115,11 @@ class Testing_Celeba64_DCGAN(unittest.TestCase):
         args = parser.parse_args()
       args = utils.config_utils.DotDict(vars(args))
       return args, argv_str
-    args, argv_str = build_args()
-
-    # parse the config json file
-    args = utils.config.process_config(outdir=outdir, config_file=args.config,
-                                       resume_root=args.resume_root, args=args,
-                                       myargs=myargs)
+    args, _ = build_args()
+    args.outdir = outdir
+    args, myargs = utils.config.setup_args_and_myargs(args=args, myargs=myargs)
     from DCGAN.trainer import run
-    run.main(args=args, myargs=myargs)
+    run.train(args=args, myargs=myargs)
     input('End %s' % outdir)
 
     return
