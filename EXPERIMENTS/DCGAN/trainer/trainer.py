@@ -171,13 +171,17 @@ class Trainer(base_trainer.Trainer):
 
   def _summary_scalars(self):
     myargs = self.myargs
+    itr = self.train_dict['batches_done']
+    myargs.textlogger.log(itr, **self.summary)
+    myargs.textlogger.log(itr, **self.summary_logit_mean)
+    myargs.textlogger.log(itr, **self.summary_wd)
     for key in self.summary:
-      myargs.writer.add_scalar('train_one_epoch/%s' % key, self.summary[key],
-                               self.train_dict['batches_done'])
-    myargs.writer.add_scalars('logit_mean', self.summary_logit_mean,
-                              self.train_dict['batches_done'])
-    myargs.writer.add_scalars('wd', self.summary_wd,
-                              self.train_dict['batches_done'])
+      myargs.writer.add_scalar(
+        'train_one_epoch/%s' % key, self.summary[key], itr)
+    myargs.writer.add_scalars(
+      'logit_mean', self.summary_logit_mean, itr)
+    myargs.writer.add_scalars(
+      'wd', self.summary_wd, itr)
 
   def _summary_images(self, imgs):
     myargs = self.myargs
@@ -216,6 +220,7 @@ class Trainer(base_trainer.Trainer):
                                                   use_torch=False)
     print('IS_mean: %f +- %f, FID: %f'%(IS_mean, IS_std, FID))
     summary = {'IS_mean': IS_mean, 'IS_std': IS_std, 'FID': FID}
+    self.myargs.textlogger.log(train_dict['epoch_done'], **summary)
     for key in summary:
       self.myargs.writer.add_scalar('test/' + key, summary[key],
                                     train_dict['epoch_done'])

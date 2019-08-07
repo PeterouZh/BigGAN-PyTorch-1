@@ -80,10 +80,10 @@ class Testing_Celeba64_DCGAN(unittest.TestCase):
   def test_CelebA64_dcgan_wgan_gp(self):
     """
     Usage:
-        export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
-        export PORT=6111
+        export CUDA_VISIBLE_DEVICES=0
+        export PORT=6006
         export TIME_STR=1
-        export PYTHONPATH=../submodule:.
+        export PYTHONPATH=../../submodule:..
         python -c "import test_DCGAN; \
           test_DCGAN.Testing_Celeba64_DCGAN().test_CelebA64_dcgan_wgan_gp()"
 
@@ -127,10 +127,10 @@ class Testing_Celeba64_DCGAN(unittest.TestCase):
   def test_CelebA64_dcgan_wbgan_gp(self):
     """
     Usage:
-        export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5
-        export PORT=6111
+        export CUDA_VISIBLE_DEVICES=1
+        export PORT=6007
         export TIME_STR=1
-        export PYTHONPATH=../submodule:.
+        export PYTHONPATH=../../submodule:..
         python -c "import test_DCGAN; \
           test_DCGAN.Testing_Celeba64_DCGAN().test_CelebA64_dcgan_wbgan_gp()"
 
@@ -166,12 +166,110 @@ class Testing_Celeba64_DCGAN(unittest.TestCase):
 
     args, argv_str = build_args()
 
-    # parse the config json file
-    args = utils.config.process_config(outdir=outdir, config_file=args.config,
-                                       resume_root=args.resume_root, args=args,
-                                       myargs=myargs)
+    args.outdir = outdir
+    args , myargs = utils.config.setup_args_and_myargs(args=args, myargs=myargs)
     from DCGAN.trainer import run
-    run.main(args=args, myargs=myargs)
+    run.train(args=args, myargs=myargs)
+    input('End %s' % outdir)
+
+    return
+
+  def test_CelebA64_dcgan_wgan_gpreal(self):
+    """
+    Usage:
+        source activate Peterou_torch_py36
+        export CUDA_VISIBLE_DEVICES=1
+        export PORT=6007
+        export TIME_STR=1
+        export PYTHONPATH=../../submodule:..
+        python -c "import test_DCGAN; \
+          test_DCGAN.Testing_Celeba64_DCGAN().test_CelebA64_dcgan_wgan_gpreal()"
+
+    :return:
+    """
+    if 'CUDA_VISIBLE_DEVICES' not in os.environ:
+      os.environ['CUDA_VISIBLE_DEVICES'] = '5'
+    if 'PORT' not in os.environ:
+      os.environ['PORT'] = '6011'
+    if 'TIME_STR' not in os.environ:
+      os.environ['TIME_STR'] = '0'
+
+    # func name
+    outdir = os.path.join('results/DCGAN', sys._getframe().f_code.co_name)
+    myargs = argparse.Namespace()
+
+    def build_args():
+      argv_str = f"""
+            --config DCGAN/configs/dcgan_celeba64.yaml
+            --command wgan_gpreal_celeba64
+            --resume False 
+            --resume_path None 
+            --resume_root None 
+            --evaluate False --evaluate_path None
+            """
+      parser = utils.args_parser.build_parser()
+      if len(sys.argv) == 1:
+        args = parser.parse_args(args=argv_str.split())
+      else:
+        args = parser.parse_args()
+      args = utils.config_utils.DotDict(vars(args))
+      return args, argv_str
+
+    args, _ = build_args()
+    args.outdir = outdir
+    args, myargs = utils.config.setup_args_and_myargs(args=args, myargs=myargs)
+    from DCGAN.trainer import run
+    run.train(args=args, myargs=myargs)
+    input('End %s' % outdir)
+
+    return
+
+  def test_CelebA64_dcgan_wbgan_gpreal(self):
+    """
+    Usage:
+        source activate Peterou_torch_py36
+        export CUDA_VISIBLE_DEVICES=3
+        export PORT=6109
+        export TIME_STR=1
+        export PYTHONPATH=../../submodule:..
+        python -c "import test_DCGAN; \
+          test_DCGAN.Testing_Celeba64_DCGAN().test_CelebA64_dcgan_wbgan_gpreal()"
+
+    :return:
+    """
+    if 'CUDA_VISIBLE_DEVICES' not in os.environ:
+      os.environ['CUDA_VISIBLE_DEVICES'] = '5'
+    if 'PORT' not in os.environ:
+      os.environ['PORT'] = '6011'
+    if 'TIME_STR' not in os.environ:
+      os.environ['TIME_STR'] = '0'
+
+    # func name
+    outdir = os.path.join('results/DCGAN', sys._getframe().f_code.co_name)
+    myargs = argparse.Namespace()
+
+    def build_args():
+      argv_str = f"""
+            --config DCGAN/configs/dcgan_celeba64.yaml
+            --command wbgan_gpreal_celeba64
+            --resume False 
+            --resume_path None 
+            --resume_root None 
+            --evaluate False --evaluate_path None
+            """
+      parser = utils.args_parser.build_parser()
+      if len(sys.argv) == 1:
+        args = parser.parse_args(args=argv_str.split())
+      else:
+        args = parser.parse_args()
+      args = utils.config_utils.DotDict(vars(args))
+      return args, argv_str
+
+    args, _ = build_args()
+    args.outdir = outdir
+    args, myargs = utils.config.setup_args_and_myargs(args=args, myargs=myargs)
+    from DCGAN.trainer import run
+    run.train(args=args, myargs=myargs)
     input('End %s' % outdir)
 
     return
@@ -189,9 +287,9 @@ class Testing_Celeba64_DCGAN(unittest.TestCase):
     :return:
     """
     if 'CUDA_VISIBLE_DEVICES' not in os.environ:
-      os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3,4,5'
+      os.environ['CUDA_VISIBLE_DEVICES'] = '4'
     if 'PORT' not in os.environ:
-      os.environ['PORT'] = '6011'
+      os.environ['PORT'] = '6010'
     if 'TIME_STR' not in os.environ:
       os.environ['TIME_STR'] = '0'
 

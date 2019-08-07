@@ -7,8 +7,6 @@ from . import trainer
 
 
 class Trainer(trainer.Trainer):
-  def __init__(self, args, myargs):
-    super(Trainer, self).__init__(args, myargs)
 
   def train_one_epoch(self, ):
     config = self.config.train_one_epoch
@@ -30,6 +28,7 @@ class Trainer(trainer.Trainer):
       self.z_train.sample_()
       f_imgs = self.G(self.z_train[:bs])
 
+      imgs.requires_grad_()
       # train D
       D_r_logit = self.D(imgs)
       D_r_logit_mean = D_r_logit.mean()
@@ -43,8 +42,9 @@ class Trainer(trainer.Trainer):
       # Wasserstein-1 Distance
       wd = D_r_logit_mean - D_f_logit_mean
       # Backward gp loss in this func
-      gp = gan_losses.wgan_gp_gradient_penalty(
-        imgs, f_imgs, self.D, gp_lambda=config.gp_lambda)
+      gp = gan_losses.compute_grad2(
+        d_out=D_r_logit, x_in=imgs,
+        backward=True, gp_lambda=config.gp_lambda, retain_graph=True)
 
       if config.bound_type == 'constant':
         D_loss = -wd + torch.relu(wd - float(config.bound))

@@ -1,0 +1,10 @@
+* Testing_Celeba64_DCGAN
+** test_CelebA64_dcgan_wgan_gpreal
+*** DOING results/DCGAN/test_CelebA64_dcgan_wgan_gpreal_20190807-21_07_41 :6007:
+    - State "DOING"      from "TODO"       [2019-08-07 Wed 21:20]
+    - State "TODO"       from              [2019-08-07 Wed 21:20]
+** test_CelebA64_dcgan_wbgan_gpreal
+*** DOING results/DCGAN/test_CelebA64_dcgan_wbgan_gpreal_20190807-21_17_35 :6109:
+
+    - State "DOING"      from "TODO"       [2019-08-07 Wed 21:21]
+    - State "TODO"       from              [2019-08-07 Wed 21:21]
