@@ -15,7 +15,9 @@ trainer_dict = {
   "wbgan_gp_celeba64": wgan_gp_trainer.Trainer,
   "wbgan_gp_dist_celeba64": wgan_gp_trainer_distributed.Trainer,
   'wgan_gpreal_celeba64': wgan_gpreal_trainer.Trainer,
-  'wbgan_gpreal_celeba64': wgan_gpreal_trainer.Trainer
+  'wbgan_gpreal_celeba64': wgan_gpreal_trainer.Trainer,
+  'wgan_gpreal_adv_celeba64': wgan_gpreal_trainer.Trainer,
+  'wbgan_gpreal_adv_celeba64': wgan_gpreal_trainer.Trainer
 }
 
 run_dict = {

@@ -1,9 +1,27 @@
 import torch
 import tqdm
+import torch.autograd as autograd
 
 from template_lib.gans import gan_losses
 
 from . import trainer
+
+
+def compute_grad2(d_out, x_in, backward=False, gp_lambda=10.,
+                  retain_graph=True):
+  batch_size = x_in.size(0)
+  grad_dout = autograd.grad(
+    outputs=d_out.sum(), inputs=x_in,
+    create_graph=True, retain_graph=True, only_inputs=True
+  )[0]
+  grad_dout2 = grad_dout.pow(2)
+  assert (grad_dout2.size() == x_in.size())
+  reg = grad_dout2.view(batch_size, -1).sum(1)
+  reg_mean = reg.mean()
+  reg_mean = gp_lambda * reg_mean
+  if backward:
+    reg_mean.backward(retain_graph=retain_graph)
+  return reg_mean, grad_dout.detach()
 
 
 class Trainer(trainer.Trainer):
@@ -15,7 +33,8 @@ class Trainer(trainer.Trainer):
     myargs = self.myargs
     train_dict = self.train_dict
 
-    for i, (imgs, _) in enumerate(tqdm.tqdm(self.data_loader, file=myargs.stdout)):
+    pbar = tqdm.tqdm(self.data_loader, file=myargs.stdout)
+    for i, (imgs, _) in enumerate(pbar):
       self.G.train()
       self.D.train()
       train_dict['batches_done'] += 1
@@ -42,9 +61,19 @@ class Trainer(trainer.Trainer):
       # Wasserstein-1 Distance
       wd = D_r_logit_mean - D_f_logit_mean
       # Backward gp loss in this func
-      gp = gan_losses.compute_grad2(
+      gp, gp_img = compute_grad2(
         d_out=D_r_logit, x_in=imgs,
         backward=True, gp_lambda=config.gp_lambda, retain_graph=True)
+
+      if config.adv_train:
+        adv_lr = 0.01
+        D_r_logit_adv = self.D(imgs - adv_lr * gp_img.sign())
+        # D_r_logit_adv = self.D(imgs + adv_lr * gp_img.sign())
+        D_r_logit_mean_adv = D_r_logit_adv.mean()
+        adv_loss = D_r_logit_mean_adv.pow(2)
+        adv_loss.backward()
+        self.summary_logit_mean['D_r_logit_mean_adv'] = D_r_logit_mean_adv.item()
+        pbar.set_description('D_r_logit_mean_adv: %f'%D_r_logit_mean_adv)
 
       if config.bound_type == 'constant':
         D_loss = -wd + torch.relu(wd - float(config.bound))
