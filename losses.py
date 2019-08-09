@@ -43,8 +43,8 @@ def wgan_discriminator_loss(r_logit, f_logit):
   f_logit_mean = f_logit.mean()
 
   # Wasserstein-1 Distance
-  # wd = r_logit_mean - f_logit_mean
-  wd = (r_logit - f_logit).mean()
+  wd = r_logit_mean - f_logit_mean
+  # wd = (r_logit - f_logit).mean()
   D_loss = -wd
   return r_logit_mean, f_logit_mean, wd, D_loss
 
