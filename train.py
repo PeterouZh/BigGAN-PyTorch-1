@@ -159,8 +159,8 @@ def run(config, args, myargs):
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
                                             ema, state_dict, config)
   elif config['which_train_fn'] in ['wgan_gpreal', 'wbgan_gpreal']:
-    train = train_fns.wgan_gpreal_training_function(G, D, GD, z_, y_,
-                                                    ema, state_dict, config)
+    train = train_fns.wgan_gpreal_training_function(
+      G, D, GD, z_, y_, ema, state_dict, config, myargs)
   # Else, assume debugging and use the dummy train fn
   else:
     train = train_fns.dummy_training_function()
@@ -174,7 +174,7 @@ def run(config, args, myargs):
   modelarts_sync_results(args=args, myargs=myargs, join=False)
   # Train for specified number of epochs, although we mostly track G iterations.
   for epoch in range(state_dict['epoch'], config['num_epochs']):    
-    print('Epoch: %d/%d'%(epoch, config['num_epochs']))
+    myargs.logger.info('Epoch: %d/%d'%(epoch, config['num_epochs']))
     # Which progressbar to use? TQDM or my own?
     if config['pbar'] == 'mine':
       pbar = utils.progress(
@@ -198,6 +198,7 @@ def run(config, args, myargs):
         x, y = x.to(device), y.to(device)
       metrics = train(x, y)
       train_log.log(itr=int(state_dict['itr']), **metrics)
+      myargs.textlogger.log(state_dict['itr'], **metrics)
       for tag, v in metrics.items():
         myargs.writer.add_scalar('metrics/%s' % tag, v, state_dict['itr'])
       
@@ -239,7 +240,7 @@ def run(config, args, myargs):
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
   # End training
-  modelarts_sync_results(args=args, myargs=myargs, join=True)
+  modelarts_sync_results(args=args, myargs=myargs, join=True, end=True)
 
 
 def main():

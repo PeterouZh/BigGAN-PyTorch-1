@@ -8,6 +8,7 @@ import os
 
 import utils
 import losses
+from template_lib.gans import gan_losses
 
 
 # Dummy training function for debugging
@@ -92,12 +93,16 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
   return train
 
 
-def wgan_gpreal_training_function(G, D, GD, z_, y_, ema, state_dict, config):
+def wgan_gpreal_training_function(G, D, GD, z_, y_, ema, state_dict, config,
+                                  myargs):
   def train(x, y):
-    out = {}
+    train_fns_c = getattr(config, 'train_fns_c')
+    summary = {}
+    summary_D = {}
     G.optim.zero_grad()
     D.optim.zero_grad()
     # How many chunks to split x and y into?
+    x.requires_grad_()
     x = torch.split(x, config['batch_size'])
     y = torch.split(y, config['batch_size'])
     counter = 0
@@ -124,22 +129,33 @@ def wgan_gpreal_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         r_logit_mean, f_logit_mean, wd, _ = \
           losses.wgan_discriminator_loss(r_logit=D_real, f_logit=D_fake)
         # gpreal
-        gpreal_mean = losses.wgan_gpreal_gradient_penalty(
-          x=x[counter], dy=y[counter], f=GD)
-        if config.which_train_fn == 'wbgan_gpreal':
-          D_loss = (-wd + 10. * gpreal_mean + \
-                    torch.relu(wd - float(config.bound))) / \
+        img_gp, gp = gan_losses.compute_grad2(
+          d_out=D_real, x_in=x[counter],
+          backward=True, gp_lambda=10./config['num_D_accumulations'],
+          return_grad=True)
+        # losses.wgan_gpreal_gradient_penalty(x=x[counter], dy=y[counter],
+        #                                     f=GD)
+
+        if train_fns_c.adv_train:
+          r_logit_mean_adv = losses.adv_loss(
+            netD=GD, img=x[counter], y=y[counter], gp_img=img_gp,
+            adv_lr=0.01, retain_graph=True)
+          summary_D['r_logit_mean_adv'] = r_logit_mean_adv
+
+        if train_fns_c.use_bound:
+          D_loss = (-wd + torch.relu(wd - float(config.bound))) / \
                    float(config['num_D_accumulations'])
-          out['bound'] = config.bound
+          summary['bound'] = config.bound
         else:
-          D_loss = (-wd + 10.*gpreal_mean) / \
-                   float(config['num_D_accumulations'])
-        D_loss.backward()
+          D_loss = (-wd) / float(config['num_D_accumulations'])
+
+        D_loss.backward(retain_graph=True)
+
         counter += 1
-      out['r_logit_mean'] = r_logit_mean.item()
-      out['f_logit_mean'] = f_logit_mean.item()
-      out['wd'] = wd.item()
-      out['gpreal_mean'] = gpreal_mean.mean()
+      summary_D['r_logit_mean'] = r_logit_mean.item()
+      summary_D['f_logit_mean'] = f_logit_mean.item()
+      summary['wd'] = wd.item()
+      summary['gp'] = gp.mean()
 
       # Optionally apply ortho reg in D
       if config['D_ortho'] > 0.0:
@@ -165,8 +181,8 @@ def wgan_gpreal_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       G_f_logit_mean, G_loss = losses.wgan_generator_loss(f_logit=D_fake)
       G_loss = G_loss / float(config['num_G_accumulations'])
       G_loss.backward()
-      out['G_f_logit_mean'] = G_f_logit_mean.item()
-      out['G_loss'] = G_loss.item()
+      summary_D['G_f_logit_mean'] = G_f_logit_mean.item()
+      summary['G_loss'] = G_loss.item()
 
     # Optionally apply modified ortho reg in G
     if config['G_ortho'] > 0.0:
@@ -181,8 +197,9 @@ def wgan_gpreal_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     if config['ema']:
       ema.update(state_dict['itr'])
 
+    myargs.textlogger.log(state_dict['itr'], **summary_D)
     # Return G's loss and the components of D's loss.
-    return out
+    return summary
 
   return train
 

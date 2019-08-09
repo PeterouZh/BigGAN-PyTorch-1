@@ -66,6 +66,7 @@ def wgan_gpreal_gradient_penalty(x, dy, f):
   x.requires_grad_()
   D_real = f(x=x, dy=dy)
   gpreal, gpreal_mean = compute_grad2(d_out=D_real, x_in=x)
+  gpreal_mean.backward()
   return gpreal_mean
 
 
@@ -73,6 +74,15 @@ def wgan_generator_loss(f_logit):
   G_f_logit_mean = f_logit.mean()
   G_loss = - G_f_logit_mean
   return G_f_logit_mean, G_loss
+
+
+def adv_loss(netD, img, y, gp_img, adv_lr=0.01, retain_graph=False):
+  d_real_adv = netD(x=img - adv_lr * gp_img.sign(), dy=y)
+  # D_r_logit_adv = self.D(imgs + adv_lr * gp_img.sign())
+  d_real_mean_adv = d_real_adv.mean()
+  adv_loss = d_real_mean_adv.pow(2)
+  adv_loss.backward(retain_graph=retain_graph)
+  return d_real_mean_adv.item()
 
 
 # Default to hinge loss
