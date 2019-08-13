@@ -77,7 +77,7 @@ def wgan_generator_loss(f_logit):
 
 
 def adv_loss(netD, img, y, gp_img, adv_lr=0.01, retain_graph=False):
-  d_real_adv = netD(x=img - adv_lr * gp_img.sign(), dy=y)
+  d_real_adv = netD(x=img + adv_lr * gp_img, dy=y)
   # D_r_logit_adv = self.D(imgs + adv_lr * gp_img.sign())
   d_real_mean_adv = d_real_adv.mean()
   adv_loss = d_real_mean_adv.pow(2)
