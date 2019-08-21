@@ -1,6 +1,6 @@
 [submodule "submodule/template_lib-master"]
 	path = submodule/template_lib-master
-	url = https://0.0.0.0:8443/PeterouZh/template_lib.git
+	url = git@github.com:PeterouZh/template_lib.git
 [submodule "EXPERIMENTS"]
 	path = EXPERIMENTS
 	url = https://0.0.0.0:8443/PeterouZh/biggan-pytorch-1.git
