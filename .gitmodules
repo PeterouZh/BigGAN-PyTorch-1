@@ -4,3 +4,6 @@
 [submodule "BigGAN-PyTorch-1-exp-master"]
 	path = BigGAN-PyTorch-1-exp-master
 	url = git@github.com:PeterouZh/BigGAN-PyTorch-1-exp.git
+[submodule "submodule/template_lib"]
+	path = submodule/template_lib
+	url = git@github.com:PeterouZh/template_lib.git
