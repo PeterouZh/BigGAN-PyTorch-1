@@ -1,6 +1,3 @@
-[submodule "EXPERIMENTS"]
-	path = EXPERIMENTS
-	url = https://0.0.0.0:8443/PeterouZh/biggan-pytorch-1.git
 [submodule "BigGAN-PyTorch-1-exp-master"]
 	path = BigGAN-PyTorch-1-exp-master
 	url = git@github.com:PeterouZh/BigGAN-PyTorch-1-exp.git
