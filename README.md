@@ -1,4 +1,7 @@
 # Prepare inception moment file
+* Download CelebA (Align&Cropped Images) dataset [url](http://mmlab.ie.cuhk.edu.hk/projects/CelebA.html) and save *img_align_celeba* into *~/.keras/celeba/*.
+
+You'll need the Inception moments to calculate FID:
 ```bash
 export CUDA_VISIBLE_DEVICES=0
 python main.py \
@@ -23,3 +26,5 @@ python main.py \
   --command CelebA64_dcgan_wgan_gp_bound_sinkhorn \
   --outdir results/temp/CelebA64_dcgan_wgan_gp_bound_sinkhorn
 ```
+
+
