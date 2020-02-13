@@ -42,7 +42,7 @@ def prepare_parser():
   return parser
 
 
-def run(config):
+def run(config, stdout=sys.stdout):
   if 'hdf5' in config['dataset']:
     raise ValueError('Reading from an HDF5 file which you will probably be '
                      'about to overwrite! Override this error only if you know '
@@ -54,12 +54,13 @@ def run(config):
   config['compression'] = 'lzf' if config['compression'] else None #No compression; can also use 'lzf' 
 
   # Get dataset
-  kwargs = {'num_workers': config['num_workers'], 'pin_memory': False, 'drop_last': False}
+  kwargs = {'num_workers': config['num_workers'], 'pin_memory': False, 'drop_last': False, 'stdout': stdout}
   train_loader = utils.get_data_loaders(dataset=config['dataset'],
                                         batch_size=config['batch_size'],
                                         shuffle=False,
                                         data_root=config['data_root'],
                                         use_multiepoch_sampler=False,
+                                        use_data_root=True, index_filename=config['index_filename'],
                                         **kwargs)[0]     
 
   # HDF5 supports chunking and compression. You may want to experiment 
@@ -73,15 +74,18 @@ def run(config):
   # auto:(125,1,16,32) / None                         11/s                  61GB        
 
   print('Starting to load %s into an HDF5 file with chunk size %i and compression %s...' % (config['dataset'], config['chunk_size'], config['compression']))
+  saved_hdf5 = config['saved_hdf5']
   # Loop over train loader
-  for i,(x,y) in enumerate(tqdm(train_loader)):
+  for i,(x,y) in enumerate(tqdm(train_loader, desc='make hdf5', file=stdout)):
     # Stick X into the range [0, 255] since it's coming from the train loader
     x = (255 * ((x + 1) / 2.0)).byte().numpy()
     # Numpyify y
     y = y.numpy()
     # If we're on the first batch, prepare the hdf5
+    os.makedirs(os.path.dirname(saved_hdf5), exist_ok=True)
     if i==0:
-      with h5.File(config['data_root'] + '/ILSVRC%i.hdf5' % config['image_size'], 'w') as f:
+      # with h5.File(config['data_root'] + '/ILSVRC%i.hdf5' % config['image_size'], 'w') as f:
+      with h5.File(saved_hdf5, 'w') as f:
         print('Producing dataset of len %d' % len(train_loader.dataset))
         imgs_dset = f.create_dataset('imgs', x.shape,dtype='uint8', maxshape=(len(train_loader.dataset), 3, config['image_size'], config['image_size']),
                                      chunks=(config['chunk_size'], 3, config['image_size'], config['image_size']), compression=config['compression']) 
@@ -92,11 +96,13 @@ def run(config):
         labels_dset[...] = y
     # Else append to the hdf5
     else:
-      with h5.File(config['data_root'] + '/ILSVRC%i.hdf5' % config['image_size'], 'a') as f:
+      # with h5.File(config['data_root'] + '/ILSVRC%i.hdf5' % config['image_size'], 'a') as f:
+      with h5.File(saved_hdf5, 'a') as f:
         f['imgs'].resize(f['imgs'].shape[0] + x.shape[0], axis=0)
         f['imgs'][-x.shape[0]:] = x
         f['labels'].resize(f['labels'].shape[0] + y.shape[0], axis=0)
         f['labels'][-y.shape[0]:] = y
+  print('Saved hdf5 file in %s'%saved_hdf5)
 
 
 def main():
@@ -106,5 +112,27 @@ def main():
   print(config)
   run(config)
 
+
+def run1(argv_str=None):
+  from template_lib.utils.config import parse_args_and_setup_myargs, config2args
+  from template_lib.utils.modelarts_utils import prepare_dataset
+  run_script = os.path.relpath(__file__, os.getcwd())
+  args1, myargs, _ = parse_args_and_setup_myargs(argv_str, run_script=run_script, start_tb=False)
+  myargs.args = args1
+  myargs.config = getattr(myargs.config, args1.command)
+
+  # prepare_dataset(myargs.config.dataset)
+
+  parser = prepare_parser()
+  args = parser.parse_args()
+  args = config2args(myargs.config, args)
+
+  args.data_root = os.path.expanduser(args.data_root)
+
+  print(args)
+  config = vars(args)
+  run(config, stdout=myargs.stdout)
+
+
 if __name__ == '__main__':    
-  main()
+  run1()

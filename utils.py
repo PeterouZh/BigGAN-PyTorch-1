@@ -525,10 +525,15 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
                      num_workers=8, shuffle=True, load_in_mem=False, hdf5=False,
                      pin_memory=True, drop_last=True, start_itr=0,
                      num_epochs=500, use_multiepoch_sampler=False,
+                     index_filename=None,
+                     use_data_root=False,
                      **kwargs):
 
   # Append /FILENAME.hdf5 to root if using hdf5
-  data_root += '/%s' % root_dict[dataset]
+  if not use_data_root:
+    data_root += '/%s' % root_dict[dataset]
+  else:
+    data_root = os.path.expanduser(data_root)
   print('Using dataset root location %s' % data_root)
 
   which_dataset = dset_dict[dataset]
@@ -537,7 +542,11 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   image_size = imsize_dict[dataset]
   # For image folder datasets, name of the file where we store the precomputed
   # image locations to avoid having to walk the dirs every time we load.
-  dataset_kwargs = {'index_filename': '%s_imgs.npz' % dataset}
+  if index_filename is None:
+    dataset_kwargs = {'index_filename': '%s_imgs.npz' % dataset}
+  else:
+    dataset_kwargs = {'index_filename': '%s' % index_filename,
+                      'stdout': kwargs['stdout']}
   
   # HDF5 datasets have their own inbuilt transform, no need to train_transform  
   if 'hdf5' in dataset:

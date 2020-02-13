@@ -37,10 +37,10 @@ def find_classes(dir):
     return classes, class_to_idx
 
 
-def make_dataset(dir, class_to_idx):
+def make_dataset(dir, class_to_idx, stdout=sys.stdout):
   images = []
   dir = os.path.expanduser(dir)
-  for target in tqdm(sorted(os.listdir(dir))):
+  for target in tqdm(sorted(os.listdir(dir)), desc='make_dataset', file=stdout):
     d = os.path.join(dir, target)
     if not os.path.isdir(d):
       continue
@@ -106,7 +106,7 @@ class ImageFolder(data.Dataset):
 
   def __init__(self, root, transform=None, target_transform=None,
                loader=default_loader, load_in_mem=False, 
-               index_filename='imagenet_imgs.npz', **kwargs):
+               index_filename='imagenet_imgs.npz', stdout=sys.stdout, **kwargs):
     classes, class_to_idx = find_classes(root)
     # Load pre-computed image directory walk
     if os.path.exists(index_filename):
@@ -116,7 +116,7 @@ class ImageFolder(data.Dataset):
     # results to a pre-computed file.
     else:
       print('Generating  Index file %s...' % index_filename)
-      imgs = make_dataset(root, class_to_idx)
+      imgs = make_dataset(root, class_to_idx, stdout=stdout)
       np.savez_compressed(index_filename, **{'imgs' : imgs})
     if len(imgs) == 0:
       raise(RuntimeError("Found 0 images in subfolders of: " + root + "\n"
