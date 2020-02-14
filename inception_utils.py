@@ -264,6 +264,7 @@ def load_inception_net(parallel=False):
   if parallel:
     print('Parallelizing Inception module...')
     inception_model = nn.DataParallel(inception_model)
+  inception_model.eval()
   return inception_model
 
 

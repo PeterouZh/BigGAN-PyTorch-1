@@ -124,7 +124,7 @@ def run1(argv_str=None):
   # prepare_dataset(myargs.config.dataset)
 
   parser = prepare_parser()
-  args = parser.parse_args()
+  args = parser.parse_args([])
   args = config2args(myargs.config, args)
 
   args.data_root = os.path.expanduser(args.data_root)

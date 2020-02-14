@@ -6,6 +6,8 @@
  Note that if you don't shuffle the data, the IS of true data will be under-
  estimated as it is label-ordered. By default, the data is not shuffled
  so as to reduce non-determinism. '''
+import os, sys
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -46,16 +48,17 @@ def prepare_parser():
     help='Random seed to use.')
   return parser
 
-def run(config):
+def run(config, stdout=sys.stdout):
   # Get loader
   config['drop_last'] = False
-  loaders = utils.get_data_loaders(**config)
+  loaders = utils.get_data_loaders(use_data_root=True, **config)
 
   # Load inception net
   net = inception_utils.load_inception_net(parallel=config['parallel'])
+  net.eval()
   pool, logits, labels = [], [], []
   device = 'cuda'
-  for i, (x, y) in enumerate(tqdm(loaders[0])):
+  for i, (x, y) in enumerate(tqdm(loaders[0], desc='accumulate pool and logits', file=stdout)):
     x = x.to(device)
     with torch.no_grad():
       pool_val, logits_val = net(x)
@@ -77,7 +80,11 @@ def run(config):
   print('Calculating means and covariances...')
   mu, sigma = np.mean(pool, axis=0), np.cov(pool, rowvar=False)
   print('Saving calculated means and covariances to disk...')
-  np.savez(config['dataset'].strip('_hdf5')+'_inception_moments.npz', **{'mu' : mu, 'sigma' : sigma})
+
+  saved_inception_moments = config['saved_inception_moments']
+  os.makedirs(os.path.dirname(saved_inception_moments), exist_ok=True)
+  np.savez(saved_inception_moments, **{'mu' : mu, 'sigma' : sigma})
+  # np.savez(config['dataset'].strip('_hdf5') + '_inception_moments.npz', **{'mu': mu, 'sigma': sigma})
 
 def main():
   # parse command line    
@@ -87,5 +94,26 @@ def main():
   run(config)
 
 
+def run1(argv_str=None):
+  from template_lib.utils.config import parse_args_and_setup_myargs, config2args
+  from template_lib.utils.modelarts_utils import prepare_dataset
+  run_script = os.path.relpath(__file__, os.getcwd())
+  args1, myargs, _ = parse_args_and_setup_myargs(argv_str, run_script=run_script, start_tb=False)
+  myargs.args = args1
+  myargs.config = getattr(myargs.config, args1.command)
+
+  # prepare_dataset(myargs.config.dataset)
+
+  parser = prepare_parser()
+  args = parser.parse_args([])
+  args = config2args(myargs.config, args)
+
+  args.data_root = os.path.expanduser(args.data_root)
+
+  print(args)
+  config = vars(args)
+  run(config, stdout=myargs.stdout)
+
+
 if __name__ == '__main__':    
-    main()
+    run1()
