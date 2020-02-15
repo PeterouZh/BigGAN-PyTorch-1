@@ -56,6 +56,7 @@ def run(config, stdout=sys.stdout):
   # Load inception net
   net = inception_utils.load_inception_net(parallel=config['parallel'])
   net.eval()
+  # net.train()
   pool, logits, labels = [], [], []
   device = 'cuda'
   for i, (x, y) in enumerate(tqdm(loaders[0], desc='accumulate pool and logits', file=stdout)):
