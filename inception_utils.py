@@ -10,7 +10,9 @@
     IS/FID code. You *must* use the TF model if you wish to report and compare
     numbers. This code tends to produce IS values that are 5-10% lower than
     those obtained through TF. 
-'''    
+'''
+import logging
+
 import numpy as np
 from scipy import linalg # For numpy FID
 import time
@@ -307,5 +309,37 @@ def prepare_inception_metrics(dataset, parallel, no_fid=False):
         FID = numpy_calculate_frechet_distance(mu.cpu().numpy(), sigma.cpu().numpy(), data_mu, data_sigma)
     # Delete mu, sigma, pool, logits, and labels, just in case
     del mu, sigma, pool, logits, labels
+    return IS_mean, IS_std, FID
+  return get_inception_metrics
+
+
+def prepare_FID_IS(cfg, myargs):
+  from template_lib.gans.evaluation import build_GAN_metric_dict
+  from template_lib.trainer.base_trainer import Trainer
+
+  logger = logging.getLogger('tl')
+  gan_metrics_dict = build_GAN_metric_dict(cfg)
+  if 'TFFIDISScore' in gan_metrics_dict:
+    FID_IS_tf = gan_metrics_dict['TFFIDISScore']
+    FID_IS = FID_IS_tf
+
+  if 'PyTorchFIDISScore' in gan_metrics_dict:
+    FID_IS_pytorch = gan_metrics_dict['PyTorchFIDISScore']
+    FID_IS = FID_IS_pytorch
+
+  def get_inception_metrics(sample_func, eval_iter, *args, **kwargs):
+    try:
+      FID, IS_mean, IS_std = FID_IS(
+        sample_func=sample_func, stdout=myargs.stdout)
+      logger.info(f'\n\teval_iter {eval_iter}: '
+                  f'IS_mean_tf:{IS_mean:.3f} +- {IS_std:.3f}\n\tFID_tf: {FID:.3f}')
+      dict_data = (dict(FID_tf=FID, IS_mean_tf=IS_mean, IS_std_tf=IS_std))
+      Trainer.summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=eval_iter,
+                                  textlogger=myargs.textlogger)
+    except:
+      logger.warning("Error FID_IS.")
+      import traceback
+      print(traceback.format_exc())
+
     return IS_mean, IS_std, FID
   return get_inception_metrics

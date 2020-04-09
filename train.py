@@ -12,7 +12,7 @@ import functools
 import math
 import numpy as np
 from tqdm import tqdm, trange
-
+from easydict import EasyDict
 
 import torch
 import torch.nn as nn
@@ -31,7 +31,7 @@ from sync_batchnorm import patch_replication_callback
 
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
-def run(config):
+def main(config, myargs):
 
   # Update the config dict as necessary
   # This is for convenience, to add settings derived from the user-specified
@@ -59,20 +59,23 @@ def run(config):
   torch.backends.cudnn.benchmark = True
 
   # Import the model--this line allows us to dynamically select different files.
-  model = __import__(config['model'])
-  experiment_name = (config['experiment_name'] if config['experiment_name']
-                       else utils.name_from_config(config))
+  import importlib
+  model = importlib.import_module(config['model'])
+  # model = __import__(config['model'])
+  experiment_name = 'exp'
+  # experiment_name = (config['experiment_name'] if config['experiment_name']
+  #                      else utils.name_from_config(config))
   print('Experiment name is %s' % experiment_name)
 
   # Next, build the model
-  G = model.Generator(**config).to(device)
+  G = model.Generator(**config, cfg=getattr(myargs.config, 'generator')).to(device)
   D = model.Discriminator(**config).to(device)
   
    # If using EMA, prepare it
   if config['ema']:
     print('Preparing EMA for G with decay of {}'.format(config['ema_decay']))
     G_ema = model.Generator(**{**config, 'skip_init':True, 
-                               'no_optim': True}).to(device)
+                               'no_optim': True}, cfg=getattr(myargs.config, 'generator')).to(device)
     ema = utils.ema(G, G_ema, config['ema_decay'], config['ema_start'])
   else:
     G_ema, ema = None, None
@@ -134,7 +137,8 @@ def run(config):
                                       'start_itr': state_dict['itr']})
 
   # Prepare inception metrics: FID and IS
-  get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'], config['no_fid'])
+  get_inception_metrics = inception_utils.prepare_FID_IS(myargs.config, myargs)
+  # get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'], config['no_fid'])
 
   # Prepare noise and randomly sampled label arrays
   # Allow for different batch sizes in G
@@ -155,17 +159,22 @@ def run(config):
   else:
     train = train_fns.dummy_training_function()
   # Prepare Sample function for use with inception metrics
-  sample = functools.partial(utils.sample,
+  sample = functools.partial(utils.sample_imgs,
                               G=(G_ema if config['ema'] and config['use_ema']
                                  else G),
                               z_=z_, y_=y_, config=config)
+  # sample = functools.partial(utils.sample,
+  #                            G=(G_ema if config['ema'] and config['use_ema']
+  #                               else G),
+  #                            z_=z_, y_=y_, config=config)
 
   print('Beginning training at epoch %d...' % state_dict['epoch'])
   # Train for specified number of epochs, although we mostly track G iterations.
   for epoch in range(state_dict['epoch'], config['num_epochs']):    
     # Which progressbar to use? TQDM or my own?
     if config['pbar'] == 'mine':
-      pbar = utils.progress(loaders[0],displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta')
+      pbar = utils.progress(loaders[0],displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta',
+                            stdout=myargs.stdout)
     else:
       pbar = tqdm(loaders[0])
     for i, (x, y) in enumerate(pbar):
@@ -193,12 +202,12 @@ def run(config):
       if config['pbar'] == 'mine':
           print(', '.join(['itr: %d' % state_dict['itr']] 
                            + ['%s : %+4.3f' % (key, metrics[key])
-                           for key in metrics]), end=' ')
+                           for key in metrics]), end=' ', file=myargs.stdout, flush=True)
 
       # Save weights and copies as configured at specified interval
       if not (state_dict['itr'] % config['save_every']):
         if config['G_eval_mode']:
-          print('Switchin G to eval mode...')
+          print('Switchin G to eval mode...', file=myargs.stdout)
           G.eval()
           if config['ema']:
             G_ema.eval()
@@ -206,22 +215,36 @@ def run(config):
                                   state_dict, config, experiment_name)
 
       # Test every specified interval
-      if not (state_dict['itr'] % config['test_every']):
+      if not (state_dict['itr'] % config['test_every']) or state_dict['itr'] == 1:
         if config['G_eval_mode']:
-          print('Switchin G to eval mode...')
+          print('Switchin G to eval mode...', file=myargs.stdout, flush=True)
           G.eval()
         train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
-                       get_inception_metrics, experiment_name, test_log)
+                       get_inception_metrics, experiment_name, test_log, myargs=myargs)
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
 
 
-def main():
-  # parse command line and run
+def run(argv_str=None):
+  from template_lib.utils.config import parse_args_and_setup_myargs, config2args
+  from template_lib.utils.modelarts_utils import prepare_dataset
+  run_script = os.path.relpath(__file__, os.getcwd())
+  args1, myargs, _ = parse_args_and_setup_myargs(argv_str, run_script=run_script, start_tb=False)
+  myargs.args = args1
+  myargs.config = getattr(myargs.config, args1.command)
+
+  if hasattr(myargs.config, 'datasets'):
+    prepare_dataset(myargs.config.datasets, cfg=myargs.config)
+
   parser = utils.prepare_parser()
-  config = vars(parser.parse_args())
-  print(config)
-  run(config)
+  args = parser.parse_args([])
+  args = config2args(myargs.config.args, args)
+
+  args.base_root = os.path.join(myargs.args.outdir, 'biggan')
+
+  main(config=EasyDict(vars(args)), myargs=myargs)
+
 
 if __name__ == '__main__':
-  main()
+  run()
+
