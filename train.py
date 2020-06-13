@@ -68,14 +68,14 @@ def main(config, myargs):
   print('Experiment name is %s' % experiment_name)
 
   # Next, build the model
-  G = model.Generator(**config, cfg=getattr(myargs.config, 'generator')).to(device)
+  G = model.Generator(**config, cfg=getattr(myargs.config, 'generator', None)).to(device)
   D = model.Discriminator(**config).to(device)
   
    # If using EMA, prepare it
   if config['ema']:
     print('Preparing EMA for G with decay of {}'.format(config['ema_decay']))
     G_ema = model.Generator(**{**config, 'skip_init':True, 
-                               'no_optim': True}, cfg=getattr(myargs.config, 'generator')).to(device)
+                               'no_optim': True}, cfg=getattr(myargs.config, 'generator', None)).to(device)
     ema = utils.ema(G, G_ema, config['ema_decay'], config['ema_start'])
   else:
     G_ema, ema = None, None

@@ -338,6 +338,7 @@ def prepare_FID_IS(cfg, myargs):
                                   textlogger=myargs.textlogger)
     except:
       logger.warning("Error FID_IS.")
+      IS_mean, IS_std, FID = 0., 0., 0.
       import traceback
       print(traceback.format_exc())
 
