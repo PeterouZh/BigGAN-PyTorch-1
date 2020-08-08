@@ -29,6 +29,14 @@ import losses
 import train_fns
 from sync_batchnorm import patch_replication_callback
 
+
+try:
+  import pydevd_pycharm
+  pydevd_pycharm.settrace('localhost', port=12345, stdoutToServer=True, stderrToServer=True)
+except:
+  print(f"import error: pydevd_pycharm")
+  pass
+
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
 def main(config, myargs):
