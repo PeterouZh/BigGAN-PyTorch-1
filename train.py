@@ -33,6 +33,7 @@ from sync_batchnorm import patch_replication_callback
 try:
   import pydevd_pycharm
   pydevd_pycharm.settrace('localhost', port=12345, stdoutToServer=True, stderrToServer=True)
+  os.environ['TIME_STR'] = '0'
 except:
   print(f"import error: pydevd_pycharm")
   pass
