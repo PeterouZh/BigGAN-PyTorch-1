@@ -6,7 +6,7 @@
 
     Let's go.
 """
-
+import logging
 import os
 import functools
 import math
@@ -29,18 +29,22 @@ import losses
 import train_fns
 from sync_batchnorm import patch_replication_callback
 
+from template_lib.v2.config import update_parser_defaults_from_yaml
+from template_lib.v2.config import get_dict_str, global_cfg
 
-try:
-  import pydevd_pycharm
-  pydevd_pycharm.settrace('localhost', port=12345, stdoutToServer=True, stderrToServer=True)
-  os.environ['TIME_STR'] = '0'
-except:
-  print(f"import error: pydevd_pycharm")
-  pass
+import exp.scripts
+
+# try:
+#   import pydevd_pycharm
+#   pydevd_pycharm.settrace('localhost', port=12345, stdoutToServer=True, stderrToServer=True)
+#   os.environ['TIME_STR'] = '0'
+# except:
+#   print(f"import error: pydevd_pycharm")
+#   pass
 
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
-def main(config, myargs):
+def run(config):
 
   # Update the config dict as necessary
   # This is for convenience, to add settings derived from the user-specified
@@ -77,14 +81,14 @@ def main(config, myargs):
   print('Experiment name is %s' % experiment_name)
 
   # Next, build the model
-  G = model.Generator(**config, cfg=getattr(myargs.config, 'generator', None)).to(device)
+  G = model.Generator(**config, cfg=getattr(global_cfg, 'generator', None)).to(device)
   D = model.Discriminator(**config).to(device)
   
    # If using EMA, prepare it
   if config['ema']:
     print('Preparing EMA for G with decay of {}'.format(config['ema_decay']))
     G_ema = model.Generator(**{**config, 'skip_init':True, 
-                               'no_optim': True}, cfg=getattr(myargs.config, 'generator', None)).to(device)
+                               'no_optim': True}, cfg=getattr(global_cfg, 'generator', None)).to(device)
     ema = utils.ema(G, G_ema, config['ema_decay'], config['ema_start'])
   else:
     G_ema, ema = None, None
@@ -146,7 +150,7 @@ def main(config, myargs):
                                       'start_itr': state_dict['itr']})
 
   # Prepare inception metrics: FID and IS
-  get_inception_metrics = inception_utils.prepare_FID_IS(myargs.config, myargs)
+  get_inception_metrics = inception_utils.prepare_FID_IS(global_cfg)
   # get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'], config['no_fid'])
 
   # Prepare noise and randomly sampled label arrays
@@ -182,8 +186,7 @@ def main(config, myargs):
   for epoch in range(state_dict['epoch'], config['num_epochs']):    
     # Which progressbar to use? TQDM or my own?
     if config['pbar'] == 'mine':
-      pbar = utils.progress(loaders[0],displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta',
-                            stdout=myargs.stdout)
+      pbar = utils.progress(loaders[0],displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta')
     else:
       pbar = tqdm(loaders[0])
     for i, (x, y) in enumerate(pbar):
@@ -211,12 +214,12 @@ def main(config, myargs):
       if config['pbar'] == 'mine':
           print(', '.join(['itr: %d' % state_dict['itr']] 
                            + ['%s : %+4.3f' % (key, metrics[key])
-                           for key in metrics]), end=' ', file=myargs.stdout, flush=True)
+                           for key in metrics]), end=' ', flush=True)
 
       # Save weights and copies as configured at specified interval
       if not (state_dict['itr'] % config['save_every']):
         if config['G_eval_mode']:
-          print('Switchin G to eval mode...', file=myargs.stdout)
+          print('Switchin G to eval mode...')
           G.eval()
           if config['ema']:
             G_ema.eval()
@@ -226,15 +229,15 @@ def main(config, myargs):
       # Test every specified interval
       if not (state_dict['itr'] % config['test_every']) or state_dict['itr'] == 1:
         if config['G_eval_mode']:
-          print('Switchin G to eval mode...', file=myargs.stdout, flush=True)
+          print('Switchin G to eval mode...', flush=True)
           G.eval()
         train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
-                       get_inception_metrics, experiment_name, test_log, myargs=myargs)
+                       get_inception_metrics, experiment_name, test_log)
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
 
 
-def run(argv_str=None):
+def run1(argv_str=None):
   from template_lib.utils.config import parse_args_and_setup_myargs, config2args
   from template_lib.utils.modelarts_utils import prepare_dataset
   run_script = os.path.relpath(__file__, os.getcwd())
@@ -253,9 +256,19 @@ def run(argv_str=None):
 
   main(config=EasyDict(vars(args)), myargs=myargs)
 
+def main():
+  # parse command line and run
+  parser = utils.prepare_parser()
+
+  update_parser_defaults_from_yaml(parser)
+
+  args = parser.parse_args()
+  args.base_root = os.path.join(args.tl_outdir, 'biggan')
+  config = EasyDict(vars(args))
+  config_str = get_dict_str(config)
+  logger = logging.getLogger('tl')
+  logger.info(config_str)
+  run(config)
 
 if __name__ == '__main__':
-  run()
-  from template_lib.examples import test_bash
-  test_bash.TestingUnit().test_resnet(gpu=os.environ['CUDA_VISIBLE_DEVICES'])
-
+  main()

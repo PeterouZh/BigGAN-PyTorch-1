@@ -313,29 +313,21 @@ def prepare_inception_metrics(dataset, parallel, no_fid=False):
   return get_inception_metrics
 
 
-def prepare_FID_IS(cfg, myargs):
-  from template_lib.gans.evaluation import build_GAN_metric_dict
-  from template_lib.trainer.base_trainer import Trainer
+def prepare_FID_IS(cfg):
+  from template_lib.v2.GAN.evaluation import build_GAN_metric
+  from template_lib.v2.logger import summary_dict2txtfig
+  from template_lib.v2.logger import global_textlogger as textlogger
 
   logger = logging.getLogger('tl')
-  gan_metrics_dict = build_GAN_metric_dict(cfg)
-  if 'TFFIDISScore' in gan_metrics_dict:
-    FID_IS_tf = gan_metrics_dict['TFFIDISScore']
-    FID_IS = FID_IS_tf
-
-  if 'PyTorchFIDISScore' in gan_metrics_dict:
-    FID_IS_pytorch = gan_metrics_dict['PyTorchFIDISScore']
-    FID_IS = FID_IS_pytorch
+  FID_IS = build_GAN_metric(cfg.GAN_metric)
 
   def get_inception_metrics(sample_func, eval_iter, *args, **kwargs):
     try:
-      FID, IS_mean, IS_std = FID_IS(
-        sample_func=sample_func, stdout=myargs.stdout)
+      FID, IS_mean, IS_std = FID_IS(sample_func=sample_func)
       logger.info(f'\n\teval_iter {eval_iter}: '
                   f'IS_mean_tf:{IS_mean:.3f} +- {IS_std:.3f}\n\tFID_tf: {FID:.3f}')
       dict_data = (dict(FID_tf=FID, IS_mean_tf=IS_mean, IS_std_tf=IS_std))
-      Trainer.summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=eval_iter,
-                                  textlogger=myargs.textlogger)
+      summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=eval_iter, textlogger=textlogger)
     except:
       logger.warning("Error FID_IS.")
       IS_mean, IS_std, FID = 0., 0., 0.

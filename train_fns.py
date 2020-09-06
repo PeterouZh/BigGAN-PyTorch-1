@@ -159,8 +159,8 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
     user-specified), logs the results, and saves a best_ copy if it's an 
     improvement. '''
 def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
-         experiment_name, test_log, myargs):
-  print('Gathering inception metrics...', file=myargs.stdout)
+         experiment_name, test_log):
+  print('Gathering inception metrics...', )
   if config['accumulate_stats']:
     utils.accumulate_standing_stats(G_ema if config['ema'] and config['use_ema'] else G,
                            z_, y_, config['n_classes'],
@@ -169,11 +169,11 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
                                                num_inception_images=config['num_inception_images'],
                                                num_splits=10)
   print('Itr %d: PYTORCH UNOFFICIAL Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' %
-        (state_dict['itr'], IS_mean, IS_std, FID), file=myargs.stdout)
+        (state_dict['itr'], IS_mean, IS_std, FID), )
   # If improved over previous best metric, save approrpiate copy
   if ((config['which_best'] == 'IS' and IS_mean > state_dict['best_IS'])
     or (config['which_best'] == 'FID' and FID < state_dict['best_FID'])):
-    print('%s improved over previous best, saving checkpoint...' % config['which_best'], file=myargs.stdout)
+    print('%s improved over previous best, saving checkpoint...' % config['which_best'], )
     utils.save_weights(G, D, state_dict, config['weights_root'],
                        experiment_name, 'best%d' % state_dict['save_best_num'],
                        G_ema if config['ema'] else None)
