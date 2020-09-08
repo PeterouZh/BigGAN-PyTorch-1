@@ -45,7 +45,7 @@ import exp.scripts
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
 def run(config):
-
+  logger = logging.getLogger('tl')
   # Update the config dict as necessary
   # This is for convenience, to add settings derived from the user-specified
   # configuration into the config-dict (e.g. inferring the number of classes
@@ -104,9 +104,9 @@ def run(config):
     D = D.half()
     # Consider automatically reducing SN_eps?
   GD = model.G_D(G, D)
-  print(G)
-  print(D)
-  print('Number of params in G: {} D: {}'.format(
+  logger.info(G)
+  logger.info(D)
+  logger.info('Number of params in G: {} D: {}'.format(
     *[sum([p.data.nelement() for p in net.parameters()]) for net in [G,D]]))
   # Prepare state dict, which holds things like epoch # and itr #
   state_dict = {'itr': 0, 'epoch': 0, 'save_num': 0, 'save_best_num': 0,
