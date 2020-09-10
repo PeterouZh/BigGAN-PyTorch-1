@@ -82,7 +82,7 @@ def run(config):
 
   # Next, build the model
   G = model.Generator(**config, cfg=getattr(global_cfg, 'generator', None)).to(device)
-  D = model.Discriminator(**config).to(device)
+  D = model.Discriminator(**config, cfg=getattr(global_cfg, 'discriminator', None)).to(device)
   
    # If using EMA, prepare it
   if config['ema']:
