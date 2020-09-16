@@ -55,7 +55,10 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         utils.ortho(D, config['D_ortho'])
       
       D.optim.step()
-    
+
+    out = {'D_real': D_real.mean().item(),
+           'D_fake': D_fake.mean().item()}
+
     # Optionally toggle "requires_grad"
     if config['toggle_grads']:
       utils.toggle_grad(D, False)
@@ -71,7 +74,9 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       D_fake = GD(z_, y_, train_G=True, split_D=config['split_D'])
       G_loss = losses.generator_loss(D_fake) / float(config['num_G_accumulations'])
       G_loss.backward()
-    
+
+    # out['D_G_fake'] = D_fake.mean().item()
+
     # Optionally apply modified ortho reg in G
     if config['G_ortho'] > 0.0:
       print('using modified ortho reg in G') # Debug print to indicate we're using ortho reg in G
@@ -84,9 +89,10 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     if config['ema']:
       ema.update(state_dict['itr'])
     
-    out = {'G_loss': float(G_loss.item()), 
-            'D_loss_real': float(D_loss_real.item()),
-            'D_loss_fake': float(D_loss_fake.item())}
+    # out = {'G_loss': float(G_loss.item()),
+    #         'D_loss_real': float(D_loss_real.item()),
+    #         'D_loss_fake': float(D_loss_fake.item())}
+
     # Return G's loss and the components of D's loss.
     return out
   return train

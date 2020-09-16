@@ -27,6 +27,9 @@ from torch.utils.data import DataLoader
 
 import datasets as dset
 
+from detectron2.data.samplers import TrainingSampler
+
+
 def prepare_parser():
   usage = 'Parser for all scripts.'
   parser = ArgumentParser(description=usage)
@@ -527,6 +530,8 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
                      num_epochs=500, use_multiepoch_sampler=False,
                      index_filename=None,
                      use_data_root=False,
+                     dataset_kwargs={},
+                     use_training_sampler=False,
                      **kwargs):
 
   # Append /FILENAME.hdf5 to root if using hdf5
@@ -543,10 +548,10 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   # For image folder datasets, name of the file where we store the precomputed
   # image locations to avoid having to walk the dirs every time we load.
   if index_filename is None:
-    dataset_kwargs = {'index_filename': '%s_imgs.npz' % dataset}
+    dataset_kwargs = {'index_filename': '%s_imgs.npz' % dataset, **dataset_kwargs}
   else:
     dataset_kwargs = {'index_filename': '%s' % index_filename,
-                      'stdout': kwargs['stdout']}
+                      **dataset_kwargs}
   
   # HDF5 datasets have their own inbuilt transform, no need to train_transform  
   if 'hdf5' in dataset:
@@ -581,6 +586,12 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
     print('Using multiepoch sampler from start_itr %d...' % start_itr)
     loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory}
     sampler = MultiEpochSampler(train_set, num_epochs, start_itr, batch_size)
+    train_loader = DataLoader(train_set, batch_size=batch_size,
+                              sampler=sampler, **loader_kwargs)
+  elif use_training_sampler:
+    loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,
+                     'drop_last': drop_last}  # Default, drop last incomplete batch
+    sampler = TrainingSampler(len(train_set))
     train_loader = DataLoader(train_set, batch_size=batch_size,
                               sampler=sampler, **loader_kwargs)
   else:

@@ -13,6 +13,7 @@ import math
 import numpy as np
 from tqdm import tqdm, trange
 from easydict import EasyDict
+from collections import defaultdict
 
 import torch
 import torch.nn as nn
@@ -31,6 +32,9 @@ from sync_batchnorm import patch_replication_callback
 
 from template_lib.v2.config import update_parser_defaults_from_yaml
 from template_lib.v2.config import get_dict_str, global_cfg
+from template_lib.v2.logger import summary_defaultdict2txtfig
+from template_lib.v2.logger import global_textlogger as textlogger
+
 
 import exp.scripts
 
@@ -147,8 +151,17 @@ def run(config):
   D_batch_size = (config['batch_size'] * config['num_D_steps']
                   * config['num_D_accumulations'])
   loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
-                                      'start_itr': state_dict['itr']})
+                                      'start_itr': state_dict['itr'],
+                                      **getattr(global_cfg, 'train_dataloader', {})}
+                                   )
 
+  val_loaders = None
+  if hasattr(global_cfg, 'val_dataloader'):
+    val_loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
+                                            'start_itr': state_dict['itr'],
+                                            **global_cfg.val_dataloader}
+                                         )[0]
+    val_loaders = iter(val_loaders)
   # Prepare inception metrics: FID and IS
   get_inception_metrics = inception_utils.prepare_FID_IS(global_cfg)
   # get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'], config['no_fid'])
@@ -180,7 +193,7 @@ def run(config):
   #                            G=(G_ema if config['ema'] and config['use_ema']
   #                               else G),
   #                            z_=z_, y_=y_, config=config)
-
+  summary_d = defaultdict(dict)
   print('Beginning training at epoch %d...' % state_dict['epoch'])
   # Train for specified number of epochs, although we mostly track G iterations.
   for epoch in range(state_dict['epoch'], config['num_epochs']):    
@@ -202,8 +215,23 @@ def run(config):
         x, y = x.to(device).half(), y.to(device)
       else:
         x, y = x.to(device), y.to(device)
+
       metrics = train(x, y)
+
+      if val_loaders is not None:
+        val_x, val_y = next(val_loaders)
+        val_x = val_x.cuda()
+        val_y = val_y.cuda()
+        with torch.no_grad():
+          D_val = D(val_x, val_y)
+        metrics['D_val'] = D_val.mean().item()
+
       train_log.log(itr=int(state_dict['itr']), **metrics)
+      summary_d['D_logits'].clear()
+      summary_d['D_logits'].update(metrics)
+
+      summary_defaultdict2txtfig(default_dict=summary_d, prefix='train', step=state_dict['itr'],
+                                 textlogger=textlogger)
       
       # Every sv_log_interval, log singular values
       if (config['sv_log_interval'] > 0) and (not (state_dict['itr'] % config['sv_log_interval'])):
@@ -227,7 +255,8 @@ def run(config):
                                   state_dict, config, experiment_name)
 
       # Test every specified interval
-      if not (state_dict['itr'] % config['test_every']) or state_dict['itr'] == 1:
+      if not (state_dict['itr'] % config['test_every']) or state_dict['itr'] == 1 \
+            or not (state_dict['itr'] % (config['test_every_epoch'] * len(loaders[0]))):
         if config['G_eval_mode']:
           print('Switchin G to eval mode...', flush=True)
           G.eval()
