@@ -36,7 +36,7 @@ def crammer_singer_criterion(X, Ylabel):
   num_real_classes = X.shape[1] - 1
   mask = torch.ones_like(X)
   mask.scatter_(1, Ylabel.unsqueeze(-1), 0)
-  wrongs = torch.masked_select(X,mask.byte()).reshape(X.shape[0], num_real_classes)
+  wrongs = torch.masked_select(X,mask.bool()).reshape(X.shape[0], num_real_classes)
   max_wrong, _ = wrongs.max(1)
   max_wrong = max_wrong.unsqueeze(-1)
   target = X.gather(1,Ylabel.unsqueeze(-1))
@@ -46,7 +46,7 @@ def crammer_singer_complement_criterion(X, Ylabel):
   num_real_classes = X.shape[1] - 1
   mask = torch.ones_like(X)
   mask.scatter_(1, Ylabel.unsqueeze(-1), 0)
-  wrongs = torch.masked_select(X,mask.byte()).reshape(X.shape[0], num_real_classes)
+  wrongs = torch.masked_select(X,mask.bool()).reshape(X.shape[0], num_real_classes)
   max_wrong, _ = wrongs.max(1)
   max_wrong = max_wrong.unsqueeze(-1)
   target = X.gather(1,Ylabel.unsqueeze(-1))
@@ -73,7 +73,7 @@ def weston_watkins_criterion(X, Ylabel):
   num_real_classes = X.shape[1] - 1
   mask = torch.ones_like(X)
   mask.scatter_(1, Ylabel.unsqueeze(-1), 0)
-  wrongs = torch.masked_select(X,mask.byte()).reshape(X.shape[0], num_real_classes)
+  wrongs = torch.masked_select(X,mask.bool()).reshape(X.shape[0], num_real_classes)
   target = X.gather(1,Ylabel.unsqueeze(-1))
   return torch.mean(F.relu(1 + wrongs - target))
   #return torch.mean(torch.sum(F.relu(1 + wrongs - target), 1))
