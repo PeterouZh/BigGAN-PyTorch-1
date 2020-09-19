@@ -256,7 +256,7 @@ def run(config):
 
       # Test every specified interval
       if not (state_dict['itr'] % config['test_every']) or state_dict['itr'] == 1 \
-            or not (state_dict['itr'] % (config['test_every_epoch'] * len(loaders[0]))):
+            or not (state_dict['itr'] % (global_cfg.test_every_epoch * len(loaders[0]))):
         if config['G_eval_mode']:
           print('Switchin G to eval mode...', flush=True)
           G.eval()
