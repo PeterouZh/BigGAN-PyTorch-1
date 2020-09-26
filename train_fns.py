@@ -11,6 +11,10 @@ import losses
 
 import numpy as np
 
+from template_lib.v2.config import global_cfg
+from exp.multilabel_ce import loss_multilabel_ce
+
+
 # Dummy training function for debugging
 def dummy_training_function():
   def train(x, y):
@@ -50,7 +54,17 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         
         # Compute components of D's loss, average them, and divide by 
         # the number of gradient accumulations
-        if config['mh_csc_loss'] or config['mh_loss']:
+        if getattr(global_cfg, 'multilabel_ce', False):
+          D_loss_real = loss_multilabel_ce.discriminator_loss(
+            D_real, y[counter], config['n_classes'],
+            margin=global_cfg.margin_dr)
+          D_loss_fake = loss_multilabel_ce.discriminator_loss(
+            pred=D_fake, target=None, gan_label=config['n_classes'] + 1,
+            margin=global_cfg.margin_df)
+          # D_loss_fake = loss_multilabel_ce.discriminator_loss(
+          #   D_fake, y_[:config['batch_size']], config['n_classes'] + 1)
+
+        elif config['mh_csc_loss'] or config['mh_loss']:
           D_loss_real = losses.crammer_singer_criterion(D_real, y[counter])
           D_loss_fake = losses.crammer_singer_criterion(D_fake, lossy[:config['batch_size']])
         else:
@@ -88,7 +102,20 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         G_loss = fm_loss
       else:
         D_fake = GD(z_, y_, train_G=True, split_D=config['split_D'])
-        if config['mh_csc_loss']:
+        if getattr(global_cfg, 'multilabel_ce', False):
+          G_loss = 0
+          if global_cfg.weight_adv > 0.:
+            adv_loss = loss_multilabel_ce.discriminator_loss(
+              pred=D_fake, target=y_, gan_label=config['n_classes'],
+              margin=global_cfg.margin_g, gamma=global_cfg.gamma_g)
+            G_loss = G_loss + global_cfg.weight_adv * adv_loss
+          if global_cfg.weight_fm > 0.:
+            D_feat_fake, D_feat_real = GD(z_, y_, x[-1], None, train_G=True, split_D=config['split_D'], feat=True)
+            fm_loss = torch.mean(torch.abs(torch.mean(D_feat_fake, 0) - torch.mean(D_feat_real, 0)))
+            G_loss = G_loss + global_cfg.weight_fm * fm_loss
+
+          G_loss = G_loss / float(config['num_G_accumulations'])
+        elif config['mh_csc_loss']:
           G_loss = losses.crammer_singer_complement_criterion(D_fake, lossy[:config['batch_size']]) / float(config['num_G_accumulations'])
         elif config['mh_loss']:
           D_feat_fake, D_feat_real = GD(z_, y_, x[-1], None, train_G=True, split_D=config['split_D'], feat=True)
@@ -257,7 +284,7 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
       fixed_Gz = which_G(fixed_z, which_G.shared(fixed_y))
   if not os.path.isdir('%s/%s' % (config['samples_root'], experiment_name)):
     os.mkdir('%s/%s' % (config['samples_root'], experiment_name))
-  image_filename = '%s/%s/fixed_samples%d.jpg' % (config['samples_root'], 
+  image_filename = '%s/%s/fixed_samples%010d.jpg' % (config['samples_root'],
                                                   experiment_name,
                                                   state_dict['itr'])
   torchvision.utils.save_image(fixed_Gz.float().cpu(), image_filename,
@@ -297,10 +324,9 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
     utils.accumulate_standing_stats(G_ema if config['ema'] and config['use_ema'] else G,
                            z_, y_, config['n_classes'],
                            config['num_standing_accumulations'])
-  IS_mean, IS_std, FID = get_inception_metrics(sample,
-                                               eval_iter=state_dict['itr'],
-                                               num_inception_images=config['num_inception_images'],
-                                               num_splits=10)
+  IS_mean, IS_std, FID = get_inception_metrics(
+    sample, eval_iter=state_dict['epoch'],
+    num_inception_images=config['num_inception_images'], num_splits=10)
   print('Itr %d: PYTORCH UNOFFICIAL Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID))
   # If improved over previous best metric, save approrpiate copy
   if ((config['which_best'] == 'IS' and IS_mean > state_dict['best_IS'])

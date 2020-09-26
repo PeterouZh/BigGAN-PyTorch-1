@@ -605,6 +605,7 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
                      pin_memory=True, drop_last=True, start_itr=0,
                      num_epochs=500, use_multiepoch_sampler=False, use_unlabeled_data=False,
                      use_test_set=False,
+                     global_dataset_kwargs={},
                      **kwargs):
 
   # Append /FILENAME.hdf5 to root if using hdf5
@@ -655,6 +656,7 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
     train_transform = transforms.Compose(train_transform + [
                      transforms.ToTensor(),
                      transforms.Normalize(norm_mean, norm_std)])
+  dataset_kwargs.update(global_dataset_kwargs)
   train_set = which_dataset(root=data_root, transform=train_transform,
                             load_in_mem=load_in_mem, **dataset_kwargs)
 

@@ -315,7 +315,8 @@ class Discriminator(nn.Module):
                num_D_SVs=1, num_D_SV_itrs=1, D_activation=nn.ReLU(inplace=False),
                D_lr=2e-4, D_B1=0.0, D_B2=0.999, adam_eps=1e-8,
                SN_eps=1e-12, output_dim=1, D_mixed_precision=False, D_fp16=False,
-               D_init='ortho', skip_init=False, D_param='SN', **kwargs):
+               D_init='ortho', skip_init=False, D_param='SN',
+               global_average_pooling=True, fully_conv=False, **kwargs):
     super(Discriminator, self).__init__()
     # Width multiplier
     self.ch = D_ch
@@ -379,16 +380,23 @@ class Discriminator(nn.Module):
     #self.linear = self.which_linear(self.arch['out_channels'][-1], output_dim)
     # Embedding for projection discrimination
     
-    self.global_average_pooling = True
+    self.global_average_pooling = global_average_pooling
     self.projection_discriminator = False
-    if self.projection_discriminator:
+    self.fully_conv = fully_conv
+    if self.fully_conv:
+      self.conv_out = self.which_conv(
+        self.arch['out_channels'][-1], output_dim,
+        kernel_size=3, stride=1, padding=1, bias=True)
+    elif self.projection_discriminator:
       self.aux_net(self.arch['out_channels'][-1], output_dim, bias=False)
       self.embed = self.which_embedding(self.n_classes, self.arch['out_channels'][-1] * output_dim)
     elif self.global_average_pooling:
       self.linear = self.which_linear(self.arch['out_channels'][-1], output_dim)
     else:
       # for CIFAR kernel_size is 8
-      self.aux_net = self.which_conv(self.arch['out_channels'][-1], output_dim, kernel_size=8, stride=1, padding=0, bias=False)
+      self.aux_net = self.which_conv(
+        self.arch['out_channels'][-1], output_dim,
+        kernel_size=8, stride=1, padding=0, bias=False)
 
     # Initialize weights
     if not skip_init:
@@ -435,7 +443,9 @@ class Discriminator(nn.Module):
         h = block(h)
     
     #instead
-    if self.projection_discriminator:
+    if self.fully_conv:
+      out = self.conv_out(self.activation(h))
+    elif self.projection_discriminator:
       h = torch.sum(self.activation(h), [2, 3], keepdim=True)
       h = h.squeeze(-1)
       projection = h * self.embed(y).view(-1, self.arch['out_channels'][-1], self.n_classes+1)

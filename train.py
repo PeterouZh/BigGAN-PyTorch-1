@@ -12,7 +12,7 @@ import functools
 import math
 import numpy as np
 from tqdm import tqdm, trange
-
+import collections
 
 import torch
 import torch.nn as nn
@@ -31,6 +31,7 @@ from sync_batchnorm import patch_replication_callback
 
 from template_lib.v2.config import update_parser_defaults_from_yaml, get_dict_str, global_cfg
 import template_lib.v2.GAN.evaluation.tf_FID_IS_score
+from template_lib.v2.logger import summary_defaultdict2txtfig, global_textlogger
 
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
@@ -70,8 +71,11 @@ def run(config):
   # Next, build the model
   G = model.Generator(**config).to(device)
   disc_config = config.copy()
-  if config['mh_csc_loss'] or config['mh_loss']:
+  if getattr(global_cfg, 'multilabel_ce', False):
+    disc_config['output_dim'] = disc_config['n_classes'] + 2
+  elif config['mh_csc_loss'] or config['mh_loss']:
     disc_config['output_dim'] = disc_config['n_classes'] + 1
+  disc_config.update(getattr(global_cfg, 'disc_config', {}))
   D = model.Discriminator(**disc_config).to(device)
   
    # If using EMA, prepare it
@@ -140,8 +144,10 @@ def run(config):
   # a full D iteration (regardless of number of D steps and accumulations)
   D_batch_size = (config['batch_size'] * config['num_D_steps']
                   * config['num_D_accumulations'])
-  loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
-                                      'start_itr': state_dict['itr']})
+  loaders = utils.get_data_loaders(
+    **{**config, 'batch_size': D_batch_size,
+       'start_itr': state_dict['itr'],
+       'global_dataset_kwargs': getattr(global_cfg, 'train_dataset_kwargs', {})})
 
   # Prepare inception metrics: FID and IS
   if config['test_every'] > 0 or global_cfg.test_every_epoch > 0:
@@ -177,6 +183,8 @@ def run(config):
                                  else G),
                               z_=z_, y_=y_, config=config, return_y=False)
 
+  default_d = collections.defaultdict(dict)
+
   print('Beginning training at epoch %d...' % state_dict['epoch'])
   # Train for specified number of epochs, although we mostly track G iterations.
   for epoch in range(state_dict['epoch'], config['num_epochs']):    
@@ -207,7 +215,10 @@ def run(config):
         metrics = train(x, y, x2)
       else:
         metrics = train(x, y)
-      
+
+      default_d['loss'].clear()
+      default_d['loss'].update(metrics)
+      summary_defaultdict2txtfig(default_d, prefix='train', step=state_dict['itr'], textlogger=global_textlogger)
         
       train_log.log(itr=int(state_dict['itr']), **metrics)
       
