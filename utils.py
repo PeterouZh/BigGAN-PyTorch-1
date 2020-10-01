@@ -505,9 +505,17 @@ classes_per_sheet_dict = {'I32': 50, 'I32_hdf5': 50,
                           'I256': 20, 'I256_hdf5': 20,
                           'C10': 10, 'C100': 25, 'STL64': 10, 'STL32': 10, 'STL48': 10, 'STL96': 10,
 }
+
+class Identity(nn.Module):
+  def __init__(self):
+    super(Identity, self).__init__()
+  def forward(self, x):
+    return x
+
 activation_dict = {'inplace_relu': nn.ReLU(inplace=True),
                    'relu': nn.ReLU(inplace=False),
-                   'ir': nn.ReLU(inplace=True),}
+                   'ir': nn.ReLU(inplace=True),
+                   'identity': Identity()}
 
 class CenterCropLongEdge(object):
   """Crops the given PIL Image on the long edge.

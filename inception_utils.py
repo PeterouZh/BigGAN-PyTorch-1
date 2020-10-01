@@ -10,7 +10,9 @@
     IS/FID code. You *must* use the TF model if you wish to report and compare
     numbers. This code tends to produce IS values that are 5-10% lower than
     those obtained through TF. 
-'''    
+'''
+import math
+
 import numpy as np
 from scipy import linalg # For numpy FID
 import time
@@ -324,8 +326,9 @@ def prepare_FID_IS(cfg):
     FID, IS_mean, IS_std = FID_IS(sample_func=sample_func)
     logger.info(f'\n\teval_iter {eval_iter}: '
                 f'IS_mean_tf:{IS_mean:.3f} +- {IS_std:.3f}\n\tFID_tf: {FID:.3f}')
-    dict_data = (dict(FID_tf=FID, IS_mean_tf=IS_mean, IS_std_tf=IS_std))
-    summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=eval_iter, textlogger=textlogger)
+    if not math.isnan(IS_mean):
+      dict_data = (dict(FID_tf=FID, IS_mean_tf=IS_mean, IS_std_tf=IS_std))
+      summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=eval_iter, textlogger=textlogger)
 
     return IS_mean, IS_std, FID
   return get_inception_metrics

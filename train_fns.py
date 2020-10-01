@@ -1,6 +1,9 @@
 ''' train_fns.py
 Functions for the main loop of training different conditional image models
 '''
+import collections
+import random
+
 import torch
 import torch.nn as nn
 import torchvision
@@ -23,6 +26,7 @@ def dummy_training_function():
 
 
 def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
+  dd = collections.defaultdict(dict)
   def train(x, y):
     G.optim.zero_grad()
     D.optim.zero_grad()
@@ -48,19 +52,25 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         z_.sample_()
         y_.sample_()
 
-        D_fake, D_real = GD(z_[:config['batch_size']], y_[:config['batch_size']], 
-                            x[counter], y[counter], train_G=False, 
-                            split_D=config['split_D'])
+        D_fake, D_real = GD(z_[:config['batch_size']], y_[:config['batch_size']],
+                                        x[counter], y[counter], train_G=False,
+                                        split_D=config['split_D'])
         
         # Compute components of D's loss, average them, and divide by 
         # the number of gradient accumulations
         if getattr(global_cfg, 'multilabel_ce', False):
+          default_v = getattr(global_cfg, 'default_v', -1)
+          # rand_num = random.uniform(0, 1)
+
+          D_real_positive = [y[counter], config['n_classes']]
+          D_real_negative = (config['n_classes'] + 1, )
           D_loss_real = loss_multilabel_ce.discriminator_loss(
-            D_real, y[counter], config['n_classes'],
-            margin=global_cfg.margin_dr)
+            pred=D_real, positive=D_real_positive, negative=D_real_negative, default_v=default_v)
+
+          D_fake_positive = (config['n_classes'] + 1, )
+          D_fake_negative = (y_[:config['batch_size']], config['n_classes'])
           D_loss_fake = loss_multilabel_ce.discriminator_loss(
-            pred=D_fake, target=None, gan_label=config['n_classes'] + 1,
-            margin=global_cfg.margin_df)
+            pred=D_fake, positive=D_fake_positive, negative=D_fake_negative,default_v=default_v)
           # D_loss_fake = loss_multilabel_ce.discriminator_loss(
           #   D_fake, y_[:config['batch_size']], config['n_classes'] + 1)
 
@@ -69,7 +79,8 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
           D_loss_fake = losses.crammer_singer_criterion(D_fake, lossy[:config['batch_size']])
         else:
           D_loss_real, D_loss_fake = losses.discriminator_loss(D_fake, D_real)
-        D_loss = (D_loss_real + D_loss_fake) / float(config['num_D_accumulations'])
+        D_loss = (D_loss_real + D_loss_fake) \
+                 / float(config['num_D_accumulations'])
         D_loss.backward()
         counter += 1
         
@@ -105,9 +116,10 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
         if getattr(global_cfg, 'multilabel_ce', False):
           G_loss = 0
           if global_cfg.weight_adv > 0.:
+            G_fake_positive = (y_, config['n_classes'])
+            G_fake_negative = (config['n_classes'] + 1, )
             adv_loss = loss_multilabel_ce.discriminator_loss(
-              pred=D_fake, target=y_, gan_label=config['n_classes'],
-              margin=global_cfg.margin_g, gamma=global_cfg.gamma_g)
+              pred=D_fake, positive=G_fake_positive, negative=G_fake_negative, default_v=default_v)
             G_loss = G_loss + global_cfg.weight_adv * adv_loss
           if global_cfg.weight_fm > 0.:
             D_feat_fake, D_feat_real = GD(z_, y_, x[-1], None, train_G=True, split_D=config['split_D'], feat=True)
@@ -137,12 +149,13 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     # If we have an ema, update it, regardless of if we test with it or not
     if config['ema']:
       ema.update(state_dict['itr'])
-    
-    out = {'G_loss': float(G_loss.item()), 
-            'D_loss_real': float(D_loss_real.item()),
-            'D_loss_fake': float(D_loss_fake.item())}
+
+    dd.clear()
+    dd['D_loss'].update({'G_loss': float(G_loss.item()),
+                         'D_loss_real': float(D_loss_real.item()),
+                         'D_loss_fake': float(D_loss_fake.item())})
     # Return G's loss and the components of D's loss.
-    return out
+    return dd
   return train
 
 def GAN_training_function_with_unlabeled(G, D, GD, z_, y_, ema, state_dict, config):

@@ -13,7 +13,7 @@ import math
 import numpy as np
 from tqdm import tqdm, trange
 import collections
-
+import importlib
 import torch
 import torch.nn as nn
 from torch.nn import init
@@ -63,7 +63,8 @@ def run(config):
   torch.backends.cudnn.benchmark = True
 
   # Import the model--this line allows us to dynamically select different files.
-  model = __import__(config['model'])
+  # model = __import__(config['model'])
+  model = importlib.import_module(config['model'])
   experiment_name = (config['experiment_name'] if config['experiment_name']
                        else utils.name_from_config(config))
   print('Experiment name is %s' % experiment_name)
@@ -71,9 +72,7 @@ def run(config):
   # Next, build the model
   G = model.Generator(**config).to(device)
   disc_config = config.copy()
-  if getattr(global_cfg, 'multilabel_ce', False):
-    disc_config['output_dim'] = disc_config['n_classes'] + 2
-  elif config['mh_csc_loss'] or config['mh_loss']:
+  if config['mh_csc_loss'] or config['mh_loss']:
     disc_config['output_dim'] = disc_config['n_classes'] + 1
   disc_config.update(getattr(global_cfg, 'disc_config', {}))
   D = model.Discriminator(**disc_config).to(device)
@@ -149,6 +148,15 @@ def run(config):
        'start_itr': state_dict['itr'],
        'global_dataset_kwargs': getattr(global_cfg, 'train_dataset_kwargs', {})})
 
+  batch_train_data = next(iter(loaders[0]))
+  batch_val_data= None
+  if hasattr(global_cfg, 'val_dataset_kwargs'):
+    val_loaders = utils.get_data_loaders(
+      **{**config, 'batch_size': D_batch_size,
+         'start_itr': state_dict['itr'],
+         'global_dataset_kwargs': getattr(global_cfg, 'val_dataset_kwargs', {})})
+    batch_val_data = next(iter(val_loaders[0]))
+
   # Prepare inception metrics: FID and IS
   if config['test_every'] > 0 or global_cfg.test_every_epoch > 0:
     # get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'], config['no_fid'])
@@ -173,10 +181,15 @@ def run(config):
     else:
       train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
                                               ema, state_dict, config)
+  else:
+    train_fn_module = importlib.import_module(config['which_train_fn'])
+    train = train_fn_module.GAN_training_function(G, D, GD, z_, y_,
+                                                  ema, state_dict, config)
   
   # Else, assume debugging and use the dummy train fn
-  else:
-    train = train_fns.dummy_training_function()
+  # else:
+  #   train = train_fns.dummy_training_function()
+
   # Prepare Sample function for use with inception metrics
   sample = functools.partial(utils.sample,
                               G=(G_ema if config['ema'] and config['use_ema']
@@ -214,11 +227,15 @@ def run(config):
         x2 = x2.to(device)
         metrics = train(x, y, x2)
       else:
-        metrics = train(x, y)
+        dd = train(x, y)
+        if isinstance(dd, collections.defaultdict):
+          metrics = dd['D_loss']
+        else:
+          metrics = dd
+          default_d.clear()
+          dd = default_d['D_loss'].update(metrics)
 
-      default_d['loss'].clear()
-      default_d['loss'].update(metrics)
-      summary_defaultdict2txtfig(default_d, prefix='train', step=state_dict['itr'], textlogger=global_textlogger)
+      summary_defaultdict2txtfig(dd, prefix='train', step=state_dict['itr'], textlogger=global_textlogger)
         
       train_log.log(itr=int(state_dict['itr']), **metrics)
       
