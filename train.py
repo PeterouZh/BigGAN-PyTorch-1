@@ -193,7 +193,7 @@ def run(config):
   #                            G=(G_ema if config['ema'] and config['use_ema']
   #                               else G),
   #                            z_=z_, y_=y_, config=config)
-  summary_d = defaultdict(dict)
+
   print('Beginning training at epoch %d...' % state_dict['epoch'])
   # Train for specified number of epochs, although we mostly track G iterations.
   for epoch in range(state_dict['epoch'], config['num_epochs']):    
@@ -216,7 +216,10 @@ def run(config):
       else:
         x, y = x.to(device), y.to(device)
 
-      metrics = train(x, y)
+      default_dict = train(x, y)
+
+      metrics = default_dict['D_loss']
+      train_log.log(itr=int(state_dict['itr']), **metrics)
 
       if val_loaders is not None:
         val_x, val_y = next(val_loaders)
@@ -224,13 +227,9 @@ def run(config):
         val_y = val_y.cuda()
         with torch.no_grad():
           D_val = D(val_x, val_y)
-        metrics['D_val'] = D_val.mean().item()
+        default_dict['D_loss']['D_val'] = D_val.mean().item()
 
-      train_log.log(itr=int(state_dict['itr']), **metrics)
-      summary_d['D_logits'].clear()
-      summary_d['D_logits'].update(metrics)
-
-      summary_defaultdict2txtfig(default_dict=summary_d, prefix='train', step=state_dict['itr'],
+      summary_defaultdict2txtfig(default_dict=default_dict, prefix='train', step=state_dict['itr'],
                                  textlogger=textlogger)
       
       # Every sv_log_interval, log singular values

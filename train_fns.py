@@ -1,6 +1,8 @@
 ''' train_fns.py
 Functions for the main loop of training different conditional image models
 '''
+import collections
+
 import torch
 import torch.nn as nn
 import torchvision
@@ -18,6 +20,7 @@ def dummy_training_function():
 
 
 def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
+  default_dict = collections.defaultdict(dict)
   def train(x, y):
     G.optim.zero_grad()
     D.optim.zero_grad()
@@ -75,8 +78,6 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       G_loss = losses.generator_loss(D_fake) / float(config['num_G_accumulations'])
       G_loss.backward()
 
-    # out['D_G_fake'] = D_fake.mean().item()
-
     # Optionally apply modified ortho reg in G
     if config['G_ortho'] > 0.0:
       print('using modified ortho reg in G') # Debug print to indicate we're using ortho reg in G
@@ -84,17 +85,16 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
       utils.ortho(G, config['G_ortho'], 
                   blacklist=[param for param in G.shared.parameters()])
     G.optim.step()
+
+    # out['D_G_fake'] = D_fake.mean().item()
     
     # If we have an ema, update it, regardless of if we test with it or not
     if config['ema']:
       ema.update(state_dict['itr'])
     
-    # out = {'G_loss': float(G_loss.item()),
-    #         'D_loss_real': float(D_loss_real.item()),
-    #         'D_loss_fake': float(D_loss_fake.item())}
-
-    # Return G's loss and the components of D's loss.
-    return out
+    default_dict.clear()
+    default_dict['D_loss'].update(out)
+    return default_dict
   return train
   
 ''' This function takes in the model, saves the weights (multiple copies if 
@@ -171,7 +171,7 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
     utils.accumulate_standing_stats(G_ema if config['ema'] and config['use_ema'] else G,
                            z_, y_, config['n_classes'],
                            config['num_standing_accumulations'])
-  IS_mean, IS_std, FID = get_inception_metrics(sample, eval_iter=state_dict['itr'],
+  IS_mean, IS_std, FID = get_inception_metrics(sample, eval_iter=state_dict['epoch'],
                                                num_inception_images=config['num_inception_images'],
                                                num_splits=10)
   print('Itr %d: PYTORCH UNOFFICIAL Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' %
