@@ -323,18 +323,12 @@ def prepare_FID_IS(cfg):
   FID_IS = build_GAN_metric(cfg.GAN_metric)
 
   def get_inception_metrics(sample_func, eval_iter, *args, **kwargs):
-    try:
-      FID, IS_mean, IS_std = FID_IS(sample_func=sample_func)
-      logger.info(f'\n\teval_iter {eval_iter}: '
-                  f'IS_mean_tf:{IS_mean:.3f} +- {IS_std:.3f}\n\tFID_tf: {FID:.3f}')
-      if not math.isnan(IS_mean):
-        dict_data = (dict(FID_tf=FID, IS_mean_tf=IS_mean, IS_std_tf=IS_std))
-        summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=eval_iter, textlogger=textlogger)
-    except:
-      logger.warning("Error FID_IS.")
-      IS_mean, IS_std, FID = 0., 0., 0.
-      import traceback
-      print(traceback.format_exc())
+    FID, IS_mean, IS_std = FID_IS(sample_func=sample_func)
+    logger.info(f'\n\teval_iter {eval_iter}: '
+                f'IS_mean_tf:{IS_mean:.3f} +- {IS_std:.3f}\n\tFID_tf: {FID:.3f}')
+    if not math.isnan(IS_mean):
+      dict_data = (dict(FID_tf=FID, IS_mean_tf=IS_mean, IS_std_tf=IS_std))
+      summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=eval_iter, textlogger=textlogger)
 
     return IS_mean, IS_std, FID
   return get_inception_metrics

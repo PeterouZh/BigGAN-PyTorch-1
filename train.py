@@ -14,6 +14,7 @@ import numpy as np
 from tqdm import tqdm, trange
 from easydict import EasyDict
 from collections import defaultdict
+import importlib
 
 import torch
 import torch.nn as nn
@@ -76,7 +77,6 @@ def run(config):
   torch.backends.cudnn.benchmark = True
 
   # Import the model--this line allows us to dynamically select different files.
-  import importlib
   model = importlib.import_module(config['model'])
   # model = __import__(config['model'])
   experiment_name = 'exp'
@@ -157,7 +157,7 @@ def run(config):
 
   val_loaders = None
   if hasattr(global_cfg, 'val_dataloader'):
-    val_loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
+    val_loaders = utils.get_data_loaders(**{**config, 'batch_size': config['batch_size'],
                                             'start_itr': state_dict['itr'],
                                             **global_cfg.val_dataloader}
                                          )[0]
@@ -182,8 +182,13 @@ def run(config):
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
                                             ema, state_dict, config)
   # Else, assume debugging and use the dummy train fn
-  else:
+  elif config['which_train_fn'] == 'dummy':
     train = train_fns.dummy_training_function()
+  else:
+    train_fns_module = importlib.import_module(config['which_train_fn'])
+    train = train_fns_module.GAN_training_function(G, D, GD, z_, y_,
+                                                   ema, state_dict, config)
+
   # Prepare Sample function for use with inception metrics
   sample = functools.partial(utils.sample_imgs,
                               G=(G_ema if config['ema'] and config['use_ema']
@@ -259,7 +264,7 @@ def run(config):
         if config['G_eval_mode']:
           print('Switchin G to eval mode...', flush=True)
           G.eval()
-        print('\n' + config['base_root'])
+        print('\n' + config['tl_outdir'])
         train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
                        get_inception_metrics, experiment_name, test_log)
     # Increment epoch counter at end of epoch
