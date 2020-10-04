@@ -19,7 +19,7 @@ def dummy_training_function():
   return train
 
 
-def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
+def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config, val_loaders):
   default_dict = collections.defaultdict(dict)
   def train(x, y):
     G.optim.zero_grad()
@@ -91,7 +91,15 @@ def GAN_training_function(G, D, GD, z_, y_, ema, state_dict, config):
     # If we have an ema, update it, regardless of if we test with it or not
     if config['ema']:
       ema.update(state_dict['itr'])
-    
+
+    if val_loaders is not None:
+      val_x, val_y = next(val_loaders)
+      val_x = val_x.cuda()
+      val_y = val_y.cuda()
+      with torch.no_grad():
+        D_val = D(val_x, val_y)
+      out['D_val'] = D_val.mean().item()
+
     default_dict.clear()
     default_dict['D_loss'].update(out)
     return default_dict

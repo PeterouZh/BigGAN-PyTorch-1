@@ -180,7 +180,7 @@ def run(config):
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
-                                            ema, state_dict, config)
+                                            ema, state_dict, config, val_loaders)
   # Else, assume debugging and use the dummy train fn
   elif config['which_train_fn'] == 'dummy':
     train = train_fns.dummy_training_function()
@@ -225,14 +225,6 @@ def run(config):
 
       metrics = default_dict['D_loss']
       train_log.log(itr=int(state_dict['itr']), **metrics)
-
-      if val_loaders is not None:
-        val_x, val_y = next(val_loaders)
-        val_x = val_x.cuda()
-        val_y = val_y.cuda()
-        with torch.no_grad():
-          D_val = D(val_x, val_y)
-        default_dict['D_loss']['D_val'] = D_val.mean().item()
 
       summary_defaultdict2txtfig(default_dict=default_dict, prefix='train', step=state_dict['itr'],
                                  textlogger=textlogger)
