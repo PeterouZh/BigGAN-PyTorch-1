@@ -6,6 +6,7 @@
  Note that if you don't shuffle the data, the IS of true data will be under-
  estimated as it is label-ordered. By default, the data is not shuffled
  so as to reduce non-determinism. '''
+import logging
 import os, sys
 
 import numpy as np
@@ -17,6 +18,10 @@ import utils
 import inception_utils
 from tqdm import tqdm, trange
 from argparse import ArgumentParser
+
+from template_lib.v2.config import update_parser_defaults_from_yaml
+from template_lib.v2.config import get_dict_str, global_cfg
+
 
 def prepare_parser():
   usage = 'Calculate and store inception metrics.'
@@ -48,7 +53,11 @@ def prepare_parser():
     help='Random seed to use.')
   return parser
 
-def run(config, stdout=sys.stdout):
+def run(config):
+  logger = logging.getLogger('tl')
+
+  saved_inception_moments = global_cfg.saved_inception_moments.format(config['dataset'])
+
   # Get loader
   config['drop_last'] = False
   loaders = utils.get_data_loaders(use_data_root=True, **config)
@@ -59,7 +68,8 @@ def run(config, stdout=sys.stdout):
   # net.train()
   pool, logits, labels = [], [], []
   device = 'cuda'
-  for i, (x, y) in enumerate(tqdm(loaders[0], desc='accumulate pool and logits', file=stdout)):
+  pbar = tqdm(loaders[0], desc='accumulate pool and logits')
+  for i, (x, y) in enumerate(pbar):
     x = x.to(device)
     with torch.no_grad():
       pool_val, logits_val = net(x)
@@ -73,25 +83,29 @@ def run(config, stdout=sys.stdout):
   # np.savez(config['dataset']+'_inception_activations.npz',
   #           {'pool': pool, 'logits': logits, 'labels': labels})
   # Calculate inception metrics and report them
-  print('Calculating inception metrics...')
+  logger.info('Calculating inception metrics...')
   IS_mean, IS_std = inception_utils.calculate_inception_score(logits)
-  print('Training data from dataset %s has IS of %5.5f +/- %5.5f' % (config['dataset'], IS_mean, IS_std))
+  logger.info('Training data from dataset %s has IS of %5.5f +/- %5.5f' % (config['dataset'], IS_mean, IS_std))
   # Prepare mu and sigma, save to disk. Remove "hdf5" by default 
   # (the FID code also knows to strip "hdf5")
-  print('Calculating means and covariances...')
+  logger.info('Calculating means and covariances...')
   mu, sigma = np.mean(pool, axis=0), np.cov(pool, rowvar=False)
-  print('Saving calculated means and covariances to disk...')
+  logger.info('Saving calculated means and covariances to disk...')
 
-  saved_inception_moments = config['saved_inception_moments']
+  logger.info(f'Save to {saved_inception_moments}')
   os.makedirs(os.path.dirname(saved_inception_moments), exist_ok=True)
   np.savez(saved_inception_moments, **{'mu' : mu, 'sigma' : sigma})
-  # np.savez(config['dataset'].strip('_hdf5') + '_inception_moments.npz', **{'mu': mu, 'sigma': sigma})
+  pass
+
 
 def main():
   # parse command line    
   parser = prepare_parser()
+
+  update_parser_defaults_from_yaml(parser)
+
   config = vars(parser.parse_args())
-  print(config)
+  print(get_dict_str(config))
   run(config)
 
 
@@ -117,4 +131,4 @@ def run1(argv_str=None):
 
 
 if __name__ == '__main__':    
-    run1()
+    main()

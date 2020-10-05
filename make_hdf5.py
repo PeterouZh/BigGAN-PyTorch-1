@@ -1,6 +1,7 @@
 """ Convert dataset to HDF5
     This script preprocesses a dataset and saves it (images and labels) to 
     an HDF5 file for improved I/O. """
+import logging
 import os
 import sys
 from argparse import ArgumentParser
@@ -16,6 +17,10 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 import utils
+
+from template_lib.v2.config import update_parser_defaults_from_yaml
+from template_lib.v2.config import get_dict_str, global_cfg
+
 
 def prepare_parser():
   usage = 'Parser for ImageNet HDF5 scripts.'
@@ -42,7 +47,15 @@ def prepare_parser():
   return parser
 
 
-def run(config, stdout=sys.stdout):
+def run(config):
+  logger = logging.getLogger('tl')
+
+  index_filename = global_cfg.index_filename.format(config['dataset'])
+  saved_hdf5 = global_cfg.saved_hdf5.format(config['dataset'])
+
+  os.makedirs(os.path.dirname(saved_hdf5), exist_ok=True)
+  logger.info(f'Save hdf5 to {saved_hdf5}')
+
   if 'hdf5' in config['dataset']:
     raise ValueError('Reading from an HDF5 file which you will probably be '
                      'about to overwrite! Override this error only if you know '
@@ -54,13 +67,13 @@ def run(config, stdout=sys.stdout):
   config['compression'] = 'lzf' if config['compression'] else None #No compression; can also use 'lzf' 
 
   # Get dataset
-  kwargs = {'num_workers': config['num_workers'], 'pin_memory': False, 'drop_last': False, 'stdout': stdout}
+  kwargs = {'num_workers': config['num_workers'], 'pin_memory': False, 'drop_last': False}
   train_loader = utils.get_data_loaders(dataset=config['dataset'],
                                         batch_size=config['batch_size'],
                                         shuffle=False,
                                         data_root=config['data_root'],
                                         use_multiepoch_sampler=False,
-                                        use_data_root=True, index_filename=config['index_filename'],
+                                        use_data_root=True, index_filename=index_filename,
                                         **kwargs)[0]     
 
   # HDF5 supports chunking and compression. You may want to experiment 
@@ -74,25 +87,24 @@ def run(config, stdout=sys.stdout):
   # auto:(125,1,16,32) / None                         11/s                  61GB        
 
   print('Starting to load %s into an HDF5 file with chunk size %i and compression %s...' % (config['dataset'], config['chunk_size'], config['compression']))
-  saved_hdf5 = config['saved_hdf5']
   # Loop over train loader
-  for i,(x,y) in enumerate(tqdm(train_loader, desc='make hdf5', file=stdout)):
+  pbar = tqdm(train_loader, desc='make hdf5')
+  for i,(x,y) in enumerate(pbar):
     # Stick X into the range [0, 255] since it's coming from the train loader
     x = (255 * ((x + 1) / 2.0)).byte().numpy()
     # Numpyify y
     y = y.numpy()
     # If we're on the first batch, prepare the hdf5
-    os.makedirs(os.path.dirname(saved_hdf5), exist_ok=True)
     if i==0:
       # with h5.File(config['data_root'] + '/ILSVRC%i.hdf5' % config['image_size'], 'w') as f:
       with h5.File(saved_hdf5, 'w') as f:
-        print('Producing dataset of len %d' % len(train_loader.dataset))
+        pbar.write('Producing dataset of len %d' % len(train_loader.dataset))
         imgs_dset = f.create_dataset('imgs', x.shape,dtype='uint8', maxshape=(len(train_loader.dataset), 3, config['image_size'], config['image_size']),
                                      chunks=(config['chunk_size'], 3, config['image_size'], config['image_size']), compression=config['compression']) 
-        print('Image chunks chosen as ' + str(imgs_dset.chunks))
+        pbar.write('Image chunks chosen as ' + str(imgs_dset.chunks))
         imgs_dset[...] = x
         labels_dset = f.create_dataset('labels', y.shape, dtype='int64', maxshape=(len(train_loader.dataset),), chunks=(config['chunk_size'],), compression=config['compression'])
-        print('Label chunks chosen as ' + str(labels_dset.chunks))
+        pbar.write('Label chunks chosen as ' + str(labels_dset.chunks))
         labels_dset[...] = y
     # Else append to the hdf5
     else:
@@ -102,14 +114,18 @@ def run(config, stdout=sys.stdout):
         f['imgs'][-x.shape[0]:] = x
         f['labels'].resize(f['labels'].shape[0] + y.shape[0], axis=0)
         f['labels'][-y.shape[0]:] = y
-  print('Saved hdf5 file in %s'%saved_hdf5)
+  logger.info('Saved hdf5 file in %s'%saved_hdf5)
 
 
 def main():
   # parse command line and run    
   parser = prepare_parser()
+
+  update_parser_defaults_from_yaml(parser)
+
   config = vars(parser.parse_args())
-  print(config)
+
+  print(get_dict_str(config))
   run(config)
 
 
@@ -135,4 +151,4 @@ def run1(argv_str=None):
 
 
 if __name__ == '__main__':    
-  run1()
+  main()

@@ -163,9 +163,11 @@ def run(config):
                                          )[0]
     val_loaders = iter(val_loaders)
   # Prepare inception metrics: FID and IS
-  get_inception_metrics = inception_utils.prepare_FID_IS(global_cfg)
-  # get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'], config['no_fid'])
-
+  if global_cfg.get('use_unofficial_FID', False):
+    get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'],
+                                                                      config['no_fid'])
+  else:
+    get_inception_metrics = inception_utils.prepare_FID_IS(global_cfg)
   # Prepare noise and randomly sampled label arrays
   # Allow for different batch sizes in G
   G_batch_size = max(config['G_batch_size'], config['batch_size'])
