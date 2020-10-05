@@ -119,10 +119,12 @@ def run(config):
   # If loading from a pre-trained model, load weights
   if config['resume']:
     print('Loading weights...')
-    utils.load_weights(G, D, state_dict,
-                       config['weights_root'], experiment_name, 
-                       config['load_weights'] if config['load_weights'] else None,
-                       G_ema if config['ema'] else None)
+    utils.load_weights(G=G, D=D, state_dict=state_dict,
+                       weights_root=global_cfg.resume_cfg.weights_root, experiment_name='',
+                       name_suffix=config['load_weights'] if config['load_weights'] else None,
+                       G_ema=G_ema if config['ema'] else None)
+    logger.info(f"Resume IS={state_dict['best_IS']}")
+    logger.info(f"Resume FID={state_dict['best_FID']}")
 
   # If parallel, parallelize the GD module
   if config['parallel']:
@@ -164,7 +166,7 @@ def run(config):
     val_loaders = iter(val_loaders)
   # Prepare inception metrics: FID and IS
   if global_cfg.get('use_unofficial_FID', False):
-    get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'],
+    get_inception_metrics = inception_utils.prepare_inception_metrics(config['inception_file'], config['parallel'],
                                                                       config['no_fid'])
   else:
     get_inception_metrics = inception_utils.prepare_FID_IS(global_cfg)
@@ -192,21 +194,32 @@ def run(config):
                                                    ema, state_dict, config)
 
   # Prepare Sample function for use with inception metrics
-  sample = functools.partial(utils.sample_imgs,
-                              G=(G_ema if config['ema'] and config['use_ema']
-                                 else G),
-                              z_=z_, y_=y_, config=config)
-  # sample = functools.partial(utils.sample,
-  #                            G=(G_ema if config['ema'] and config['use_ema']
-  #                               else G),
-  #                            z_=z_, y_=y_, config=config)
+  if global_cfg.get('use_unofficial_FID', False):
+    sample = functools.partial(utils.sample,
+                               G=(G_ema if config['ema'] and config['use_ema']
+                                  else G),
+                               z_=z_, y_=y_, config=config)
+  else:
+    sample = functools.partial(utils.sample_imgs,
+                                G=(G_ema if config['ema'] and config['use_ema']
+                                   else G),
+                                z_=z_, y_=y_, config=config)
+
+  if global_cfg.get('resume_cfg', {}).get('eval', False):
+    logger.info(f'Evaluating model.')
+    G_ema.eval()
+    G.eval()
+    train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
+                   get_inception_metrics, experiment_name, test_log)
+    return
 
   print('Beginning training at epoch %d...' % state_dict['epoch'])
   # Train for specified number of epochs, although we mostly track G iterations.
   for epoch in range(state_dict['epoch'], config['num_epochs']):    
     # Which progressbar to use? TQDM or my own?
     if config['pbar'] == 'mine':
-      pbar = utils.progress(loaders[0],displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta')
+      pbar = utils.progress(loaders[0], desc=f'Epoch:{epoch}, Itr: ',
+                            displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta')
     else:
       pbar = tqdm(loaders[0])
     for i, (x, y) in enumerate(pbar):
@@ -254,10 +267,11 @@ def run(config):
 
       # Test every specified interval
       if not (state_dict['itr'] % config['test_every']) or state_dict['itr'] == 1 \
-            or not (state_dict['itr'] % (global_cfg.test_every_epoch * len(loaders[0]))):
+            or not (state_dict['itr'] % (global_cfg.get('test_every_epoch', float('inf')) * len(loaders[0]))):
         if config['G_eval_mode']:
           print('Switchin G to eval mode...', flush=True)
           G.eval()
+        G_ema.eval()
         print('\n' + config['tl_outdir'])
         train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
                        get_inception_metrics, experiment_name, test_log)

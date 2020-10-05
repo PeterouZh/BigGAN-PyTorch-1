@@ -24,6 +24,8 @@ import torch.nn.functional as F
 from torch.nn import Parameter as P
 from torchvision.models.inception import inception_v3
 
+from template_lib.v2.logger import summary_dict2txtfig
+from template_lib.v2.logger import global_textlogger as textlogger
 
 # Module that wraps the inception network to enable use with dataparallel and
 # returning pool features and logits.
@@ -257,7 +259,10 @@ def accumulate_inception_activations(sample, net, num_inception_images=50000):
       pool += [pool_val]
       logits += [F.softmax(logits_val, 1)]
       labels += [labels_val]
-  return torch.cat(pool, 0), torch.cat(logits, 0), torch.cat(labels, 0)
+      print('', end=f'\r{len(logits) * len(labels_val)}/{num_inception_images}', flush=True)
+
+  return (torch.cat(pool, 0)[:num_inception_images], torch.cat(logits, 0)[:num_inception_images],
+          torch.cat(labels, 0)[:num_inception_images])
 
 
 # Load and wrap the Inception model
@@ -275,22 +280,27 @@ def load_inception_net(parallel=False):
 # and iterates until it accumulates config['num_inception_images'] images.
 # The iterator can return samples with a different batch size than used in
 # training, using the setting confg['inception_batchsize']
-def prepare_inception_metrics(dataset, parallel, no_fid=False):
+def prepare_inception_metrics(inception_file, parallel, no_fid=False):
   # Load metrics; this is intentionally not in a try-except loop so that
   # the script will crash here if it cannot find the Inception moments.
   # By default, remove the "hdf5" from dataset
-  dataset = dataset.strip('_hdf5')
-  data_mu = np.load(dataset+'_inception_moments.npz')['mu']
-  data_sigma = np.load(dataset+'_inception_moments.npz')['sigma']
+  # dataset = dataset.strip('_hdf5')
+  # data_mu = np.load(dataset+'_inception_moments.npz')['mu']
+  # data_sigma = np.load(dataset+'_inception_moments.npz')['sigma']
+
+  data_mu = np.load(inception_file)['mu']
+  data_sigma = np.load(inception_file)['sigma']
+
   # Load network
   net = load_inception_net(parallel)
-  def get_inception_metrics(sample, num_inception_images, num_splits=10, 
+  def get_inception_metrics(sample, eval_iter, eval_epoch, num_inception_images, num_splits=10,
                             prints=True, use_torch=True):
     if prints:
       print('Gathering activations...')
     pool, logits, labels = accumulate_inception_activations(sample, net, num_inception_images)
-    if prints:  
+    if prints:
       print('Calculating Inception Score...')
+      print(f'Num images: {len(pool)}')
     IS_mean, IS_std = calculate_inception_score(logits.cpu().numpy(), num_splits)
     if no_fid:
       FID = 9999.0
@@ -310,25 +320,28 @@ def prepare_inception_metrics(dataset, parallel, no_fid=False):
         FID = numpy_calculate_frechet_distance(mu.cpu().numpy(), sigma.cpu().numpy(), data_mu, data_sigma)
     # Delete mu, sigma, pool, logits, and labels, just in case
     del mu, sigma, pool, logits, labels
+
+    if not math.isnan(FID):
+      dict_data = (dict(FID_tf=FID, IS_mean_tf=IS_mean, IS_std_tf=IS_std))
+      summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=eval_iter, textlogger=textlogger)
     return IS_mean, IS_std, FID
+
   return get_inception_metrics
 
 
 def prepare_FID_IS(cfg):
   from template_lib.v2.GAN.evaluation import build_GAN_metric
-  from template_lib.v2.logger import summary_dict2txtfig
-  from template_lib.v2.logger import global_textlogger as textlogger
 
   logger = logging.getLogger('tl')
   FID_IS = build_GAN_metric(cfg.GAN_metric)
 
-  def get_inception_metrics(sample_func, eval_iter, *args, **kwargs):
+  def get_inception_metrics(sample_func, eval_iter, eval_epoch, *args, **kwargs):
     FID, IS_mean, IS_std = FID_IS(sample_func=sample_func)
-    logger.info(f'\n\teval_iter {eval_iter}: '
+    logger.info(f'\n\teval_iter {eval_epoch}: '
                 f'IS_mean_tf:{IS_mean:.3f} +- {IS_std:.3f}\n\tFID_tf: {FID:.3f}')
     if not math.isnan(IS_mean):
       dict_data = (dict(FID_tf=FID, IS_mean_tf=IS_mean, IS_std_tf=IS_std))
-      summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=eval_iter, textlogger=textlogger)
+      summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=eval_epoch, textlogger=textlogger)
 
     return IS_mean, IS_std, FID
   return get_inception_metrics

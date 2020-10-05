@@ -504,8 +504,8 @@ class MultiEpochSampler(torch.utils.data.Sampler):
   def __iter__(self):
     n = len(self.data_source)
     # Determine number of epochs
-    num_epochs = int(np.ceil((n * self.num_epochs 
-                              - (self.start_itr * self.batch_size)) / float(n)))
+    # num_epochs = int(np.ceil((n * self.num_epochs - (self.start_itr * self.batch_size)) / float(n)))
+    num_epochs = int(np.ceil(len(self) / float(n)))
     # Sample all the indices, and then grab the last num_epochs index sets;
     # This ensures if we're starting at epoch 4, we're still grabbing epoch 4's
     # indices
@@ -520,7 +520,8 @@ class MultiEpochSampler(torch.utils.data.Sampler):
     return iter(output)
 
   def __len__(self):
-    return len(self.data_source) * self.num_epochs - self.start_itr * self.batch_size
+    left_imgs = (self.start_itr * self.batch_size) % (len(self.data_source) * self.num_epochs)
+    return len(self.data_source) * self.num_epochs - left_imgs
 
 
 # Convenience function to centralize all data loaders

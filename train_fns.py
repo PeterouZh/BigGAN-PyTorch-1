@@ -179,7 +179,8 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
     utils.accumulate_standing_stats(G_ema if config['ema'] and config['use_ema'] else G,
                            z_, y_, config['n_classes'],
                            config['num_standing_accumulations'])
-  IS_mean, IS_std, FID = get_inception_metrics(sample, eval_iter=state_dict['epoch'],
+  IS_mean, IS_std, FID = get_inception_metrics(sample, eval_iter=state_dict['itr'],
+                                               eval_epoch=state_dict['epoch'],
                                                num_inception_images=config['num_inception_images'],
                                                num_splits=10)
   print('Itr %d: PYTORCH UNOFFICIAL Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' %
