@@ -191,7 +191,7 @@ def run(config):
   else:
     train_fns_module = importlib.import_module(config['which_train_fn'])
     train = train_fns_module.GAN_training_function(G, D, GD, z_, y_,
-                                                   ema, state_dict, config)
+                                                   ema, state_dict, config, val_loaders)
 
   # Prepare Sample function for use with inception metrics
   if global_cfg.get('use_unofficial_FID', False):
