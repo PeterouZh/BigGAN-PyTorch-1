@@ -213,6 +213,8 @@ def run(config):
                    get_inception_metrics, experiment_name, test_log)
     return
 
+  state_dict['shown_images'] = state_dict['itr'] * D_batch_size
+
   print('Beginning training at epoch %d...' % state_dict['epoch'])
   # Train for specified number of epochs, although we mostly track G iterations.
   for epoch in range(state_dict['epoch'], config['num_epochs']):    
@@ -238,10 +240,12 @@ def run(config):
 
       default_dict = train(x, y)
 
+      state_dict['shown_images'] += D_batch_size
+
       metrics = default_dict['D_loss']
       train_log.log(itr=int(state_dict['itr']), **metrics)
 
-      summary_defaultdict2txtfig(default_dict=default_dict, prefix='train', step=state_dict['itr'],
+      summary_defaultdict2txtfig(default_dict=default_dict, prefix='train', step=state_dict['shown_images'],
                                  textlogger=textlogger)
       
       # Every sv_log_interval, log singular values
@@ -266,8 +270,10 @@ def run(config):
                                   state_dict, config, experiment_name)
 
       # Test every specified interval
-      if not (state_dict['itr'] % config['test_every']) or state_dict['itr'] == 1 \
-            or not (state_dict['itr'] % (global_cfg.get('test_every_epoch', float('inf')) * len(loaders[0]))):
+      if (state_dict['itr'] % config['test_every'] == 0) or \
+            state_dict['itr'] == 1 or \
+            not (state_dict['itr'] % (global_cfg.get('test_every_epoch', float('inf')) * len(loaders[0]))) or \
+            (state_dict['shown_images'] % global_cfg.get('test_every_images', float('inf'))) < D_batch_size:
         if config['G_eval_mode']:
           print('Switchin G to eval mode...', flush=True)
           G.eval()

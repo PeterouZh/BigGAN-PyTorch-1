@@ -322,6 +322,8 @@ class CIFAR10(dset.CIFAR10):
       fo.close()
       self.data = self.data.reshape((10000, 3, 32, 32))
       self.data = self.data.transpose((0, 2, 3, 1))  # convert to HWC
+    print(f'Num of images: {len(self)}')
+    pass
       
   def __getitem__(self, index):
     """

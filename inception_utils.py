@@ -293,7 +293,7 @@ def prepare_inception_metrics(inception_file, parallel, no_fid=False):
 
   # Load network
   net = load_inception_net(parallel)
-  def get_inception_metrics(sample, eval_iter, eval_epoch, num_inception_images, num_splits=10,
+  def get_inception_metrics(sample, step, num_inception_images, num_splits=10,
                             prints=True, use_torch=True):
     if prints:
       print('Gathering activations...')
@@ -323,7 +323,7 @@ def prepare_inception_metrics(inception_file, parallel, no_fid=False):
 
     if not math.isnan(FID):
       dict_data = (dict(FID_tf=FID, IS_mean_tf=IS_mean, IS_std_tf=IS_std))
-      summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=eval_iter, textlogger=textlogger)
+      summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=step, textlogger=textlogger)
     return IS_mean, IS_std, FID
 
   return get_inception_metrics
@@ -335,13 +335,13 @@ def prepare_FID_IS(cfg):
   logger = logging.getLogger('tl')
   FID_IS = build_GAN_metric(cfg.GAN_metric)
 
-  def get_inception_metrics(sample_func, eval_iter, eval_epoch, *args, **kwargs):
+  def get_inception_metrics(sample_func, step, *args, **kwargs):
     FID, IS_mean, IS_std = FID_IS(sample_func=sample_func)
-    logger.info(f'\n\teval_iter {eval_epoch}: '
+    logger.info(f'\n\tshown images: {step}: '
                 f'IS_mean_tf:{IS_mean:.3f} +- {IS_std:.3f}\n\tFID_tf: {FID:.3f}')
     if not math.isnan(IS_mean):
       dict_data = (dict(FID_tf=FID, IS_mean_tf=IS_mean, IS_std_tf=IS_std))
-      summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=eval_epoch, textlogger=textlogger)
+      summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=step, textlogger=textlogger)
 
     return IS_mean, IS_std, FID
   return get_inception_metrics
