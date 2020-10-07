@@ -205,6 +205,8 @@ def run(config):
                                    else G),
                                 z_=z_, y_=y_, config=config)
 
+  state_dict['shown_images'] = state_dict['itr'] * D_batch_size
+
   if global_cfg.get('resume_cfg', {}).get('eval', False):
     logger.info(f'Evaluating model.')
     G_ema.eval()
@@ -213,7 +215,7 @@ def run(config):
                    get_inception_metrics, experiment_name, test_log)
     return
 
-  state_dict['shown_images'] = state_dict['itr'] * D_batch_size
+
 
   print('Beginning training at epoch %d...' % state_dict['epoch'])
   # Train for specified number of epochs, although we mostly track G iterations.
