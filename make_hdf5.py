@@ -49,9 +49,11 @@ def prepare_parser():
 
 def run(config):
   logger = logging.getLogger('tl')
-
-  index_filename = global_cfg.index_filename.format(config['dataset'])
-  saved_hdf5 = global_cfg.saved_hdf5.format(config['dataset'])
+  # fmt: off
+  config['data_root']        = os.path.expanduser(config['data_root'])
+  index_filename             = os.path.expanduser(global_cfg.index_filename.format(config['dataset']))
+  saved_hdf5                 = os.path.expanduser(global_cfg.saved_hdf5.format(config['dataset']))
+  # fmt: on
 
   os.makedirs(os.path.dirname(saved_hdf5), exist_ok=True)
   logger.info(f'Save hdf5 to {saved_hdf5}')
