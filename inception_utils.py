@@ -317,11 +317,11 @@ def prepare_inception_metrics(inception_file, parallel, no_fid=False):
         FID = torch_calculate_frechet_distance(mu, sigma, torch.tensor(data_mu).float().cuda(), torch.tensor(data_sigma).float().cuda())
         FID = float(FID.cpu().numpy())
       else:
-        FID = numpy_calculate_frechet_distance(mu.cpu().numpy(), sigma.cpu().numpy(), data_mu, data_sigma)
+        FID = numpy_calculate_frechet_distance(mu, sigma, data_mu, data_sigma)
     # Delete mu, sigma, pool, logits, and labels, just in case
     del mu, sigma, pool, logits, labels
 
-    if not math.isnan(FID):
+    if not math.isnan(FID) and not math.isnan(IS_mean):
       dict_data = (dict(FID_tf=FID, IS_mean_tf=IS_mean, IS_std_tf=IS_std))
       summary_dict2txtfig(dict_data=dict_data, prefix='evaltf', step=step, textlogger=textlogger)
     return IS_mean, IS_std, FID
