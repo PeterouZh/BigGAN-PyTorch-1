@@ -173,7 +173,7 @@ def save_and_sample(G, D, G_ema, z_, y_, fixed_z, fixed_y,
     user-specified), logs the results, and saves a best_ copy if it's an 
     improvement. '''
 def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
-         experiment_name, test_log):
+         experiment_name, test_log, **kwargs):
   print('Gathering inception metrics...', )
   if config['accumulate_stats']:
     utils.accumulate_standing_stats(G_ema if config['ema'] and config['use_ema'] else G,
@@ -181,7 +181,7 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
                            config['num_standing_accumulations'])
   IS_mean, IS_std, FID = get_inception_metrics(sample, step=state_dict['shown_images'],
                                                num_inception_images=config['num_inception_images'],
-                                               num_splits=10)
+                                               num_splits=10, **kwargs)
   print('shown_images %d: PYTORCH UNOFFICIAL Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' %
         (state_dict['shown_images'], IS_mean, IS_std, FID), )
   # If improved over previous best metric, save approrpiate copy
@@ -197,3 +197,6 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
   # Log results to file
   test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean),
                IS_std=float(IS_std), FID=float(FID))
+  return IS_mean, IS_std, FID
+
+
