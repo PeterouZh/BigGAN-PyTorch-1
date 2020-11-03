@@ -13,6 +13,7 @@
 '''
 import logging
 import math
+import os
 
 import numpy as np
 from scipy import linalg # For numpy FID
@@ -288,6 +289,7 @@ def prepare_inception_metrics(inception_file, parallel, no_fid=False):
   # data_mu = np.load(dataset+'_inception_moments.npz')['mu']
   # data_sigma = np.load(dataset+'_inception_moments.npz')['sigma']
 
+  inception_file = os.path.expanduser(inception_file)
   data_mu = np.load(inception_file)['mu']
   data_sigma = np.load(inception_file)['sigma']
 
