@@ -338,7 +338,7 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
                            z_, y_, config['n_classes'],
                            config['num_standing_accumulations'])
   IS_mean, IS_std, FID = get_inception_metrics(
-    sample, eval_iter=state_dict['epoch'],
+    sample, eval_iter=state_dict['shown_images'],
     num_inception_images=config['num_inception_images'], num_splits=10)
   print('Itr %d: PYTORCH UNOFFICIAL Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID))
   # If improved over previous best metric, save approrpiate copy

@@ -12,6 +12,8 @@ from torch.nn import Parameter as P
 import layers
 from sync_batchnorm import SynchronizedBatchNorm2d as SyncBatchNorm2d
 
+from template_lib.v2.config_cfgnode import global_cfg
+
 
 # Architectures for G
 # Attention is passed in in the format '32_64' to mean applying an attention
@@ -404,14 +406,18 @@ class Discriminator(nn.Module):
 
     # Set up optimizer
     self.lr, self.B1, self.B2, self.adam_eps = D_lr, D_B1, D_B2, adam_eps
+    if "Discriminator" in global_cfg:
+      optim_cfg = global_cfg.Discriminator.get('optim_cfg', {})
+    else:
+      optim_cfg = {}
     if D_mixed_precision:
       print('Using fp16 adam in D...')
       import utils
       self.optim = utils.Adam16(params=self.parameters(), lr=self.lr,
                              betas=(self.B1, self.B2), weight_decay=0, eps=self.adam_eps)
     else:
-      self.optim = optim.Adam(params=self.parameters(), lr=self.lr,
-                             betas=(self.B1, self.B2), weight_decay=0, eps=self.adam_eps)
+      self.optim = optim.Adam(params=self.parameters(), **{**(dict(lr=self.lr,
+                             betas=(self.B1, self.B2), weight_decay=0, eps=self.adam_eps)), **optim_cfg})
     # LR scheduling, left here for forward compatibility
     # self.lr_sched = {'itr' : 0}# if self.progressive else {}
     # self.j = 0

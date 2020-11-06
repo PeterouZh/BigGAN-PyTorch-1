@@ -29,7 +29,8 @@ import losses
 import train_fns
 from sync_batchnorm import patch_replication_callback
 
-from template_lib.v2.config import update_parser_defaults_from_yaml, get_dict_str, global_cfg
+# from template_lib.v2.config import update_parser_defaults_from_yaml, get_dict_str, global_cfg
+from template_lib.v2.config_cfgnode import update_parser_defaults_from_yaml, get_dict_str, global_cfg
 import template_lib.v2.GAN.evaluation.tf_FID_IS_score
 from template_lib.v2.logger import summary_defaultdict2txtfig, global_textlogger
 
@@ -158,7 +159,7 @@ def run(config):
     batch_val_data = next(iter(val_loaders[0]))
 
   # Prepare inception metrics: FID and IS
-  if config['test_every'] > 0 or global_cfg.test_every_epoch > 0:
+  if 'test_every_images' in global_cfg and global_cfg.test_every_images > 0:
     # get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'], config['no_fid'])
     get_inception_metrics = inception_utils.prepare_FID_IS(global_cfg)
   # Prepare noise and randomly sampled label arrays
@@ -196,6 +197,7 @@ def run(config):
                                  else G),
                               z_=z_, y_=y_, config=config, return_y=False)
 
+  state_dict['shown_images'] = state_dict['itr'] * D_batch_size
   default_d = collections.defaultdict(dict)
 
   print('Beginning training at epoch %d...' % state_dict['epoch'])
@@ -203,7 +205,8 @@ def run(config):
   for epoch in range(state_dict['epoch'], config['num_epochs']):    
     # Which progressbar to use? TQDM or my own?
     if config['pbar'] == 'mine':
-      pbar = utils.progress(loaders[0],displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta')
+      pbar = utils.progress(loaders[0], desc=f"epoch: {epoch}, itr: ",
+                            displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta')
     else:
       pbar = tqdm(loaders[0])
     
@@ -235,7 +238,8 @@ def run(config):
           default_d.clear()
           dd = default_d['D_loss'].update(metrics)
 
-      summary_defaultdict2txtfig(dd, prefix='train', step=state_dict['itr'], textlogger=global_textlogger)
+      state_dict['shown_images'] += D_batch_size
+      summary_defaultdict2txtfig(dd, prefix='train', step=state_dict['shown_images'], textlogger=global_textlogger)
         
       train_log.log(itr=int(state_dict['itr']), **metrics)
       
@@ -261,7 +265,7 @@ def run(config):
                                   state_dict, config, experiment_name)
       
       # Historical saving of weights
-      if not (state_dict['itr'] % config['historical_save_every']):
+      if config['historical_save_every'] > 0 and not (state_dict['itr'] % config['historical_save_every']):
         if config['G_eval_mode']:
           print('Switchin G to eval mode...')
           G.eval()
@@ -273,9 +277,9 @@ def run(config):
                      G_ema if config['ema'] else None)
 
       # Test every specified interval, skip the zeroth
-      if (config['test_every'] > 0) and (not ((state_dict['itr']+1) % config['test_every'])) or \
+      if (config['test_every'] > 0 and state_dict['itr'] % config['test_every'] == 0) or \
             state_dict['itr'] == 1 or \
-            state_dict['itr'] % (len(loaders[0]) * global_cfg.test_every_epoch) == 0:
+            (state_dict['shown_images'] % global_cfg.get('test_every_images', float('inf'))) < D_batch_size:
         if config['G_eval_mode']:
           print('Switchin G to eval mode...')
           G.eval()
