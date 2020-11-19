@@ -31,8 +31,9 @@ import losses
 import train_fns
 from sync_batchnorm import patch_replication_callback
 
-from template_lib.v2.config import update_parser_defaults_from_yaml
-from template_lib.v2.config import get_dict_str, global_cfg
+# from template_lib.v2.config import update_parser_defaults_from_yaml
+# from template_lib.v2.config import get_dict_str, global_cfg
+from template_lib.v2.config_cfgnode import update_parser_defaults_from_yaml, get_dict_str, global_cfg
 from template_lib.v2.logger import summary_defaultdict2txtfig
 from template_lib.v2.logger import global_textlogger as textlogger
 
@@ -46,6 +47,27 @@ import exp.scripts
 # except:
 #   print(f"import error: pydevd_pycharm")
 #   pass
+
+@torch.no_grad()
+def save_images(G, config, device='cuda'):
+  from torchvision.utils import save_image
+  logger = logging.getLogger('tl')
+
+  cfg = global_cfg.save_images
+
+  logger.info(f'Loading model:\n {cfg.model_path}')
+  G.load_state_dict(torch.load(os.path.expanduser(cfg.model_path)), strict=True)
+
+  y = torch.arange(cfg.y_start, cfg.y_end, device='cuda')
+  y = y.repeat_interleave(cfg.n_cols, dim=0)
+  z, _ = utils.prepare_z_y(len(y), G.dim_z, config['n_classes'], device=device, fp16=config['G_fp16'])
+
+  for i in range(cfg.num_imgs):
+    z.sample_()
+    Gz = G(z, G.shared(y))
+    save_path = f"{config['tl_imgdir']}/generated_images_{i:03d}.png"
+    logger.info(f'Saving to {save_path}')
+    save_image(Gz, save_path, nrow=cfg.n_cols, normalize=True, pad_value=1)
 
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
@@ -215,7 +237,9 @@ def run(config):
                    get_inception_metrics, experiment_name, test_log)
     return
 
-
+  if 'save_images' in global_cfg and global_cfg.save_images.mode:
+    save_images(G=G_ema, config=config, device=device)
+    exit(0)
 
   print('Beginning training at epoch %d...' % state_dict['epoch'])
   # Train for specified number of epochs, although we mostly track G iterations.
