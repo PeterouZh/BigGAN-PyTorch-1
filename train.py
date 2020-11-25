@@ -37,8 +37,7 @@ from template_lib.v2.config_cfgnode import update_parser_defaults_from_yaml, get
 from template_lib.v2.logger import summary_defaultdict2txtfig
 from template_lib.v2.logger import global_textlogger as textlogger
 
-
-import exp.scripts
+import template_lib.v2.GAN.evaluation.tf_FID_IS_score
 
 # try:
 #   import pydevd_pycharm
@@ -296,14 +295,12 @@ def run(config):
                                   state_dict, config, experiment_name)
 
       # Test every specified interval
-      if (state_dict['itr'] % config['test_every'] == 0) or \
-            state_dict['itr'] == 1 or \
-            not (state_dict['itr'] % (global_cfg.get('test_every_epoch', float('inf')) * len(loaders[0]))) or \
+      if state_dict['itr'] == 1 or \
+            (config['test_every'] > 0 and state_dict['itr'] % config['test_every'] == 0) or \
             (state_dict['shown_images'] % global_cfg.get('test_every_images', float('inf'))) < D_batch_size:
         if config['G_eval_mode']:
           print('Switchin G to eval mode...', flush=True)
           G.eval()
-        G_ema.eval()
         print('\n' + config['tl_outdir'])
         train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
                        get_inception_metrics, experiment_name, test_log)
