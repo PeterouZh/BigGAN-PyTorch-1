@@ -116,7 +116,13 @@ def main():
   print(get_dict_str(config))
 
   modelarts_utils.prepare_dataset(config.get('modelarts_datasets', {}), global_cfg=config)
+
+  modelarts_utils.setup_tl_outdir_obs(config)
+  modelarts_utils.modelarts_sync_results_dir(config, join=True)
+
   run(config)
+
+  modelarts_utils.modelarts_sync_results_dir(config, join=True)
 
 if __name__ == '__main__':    
   main()
