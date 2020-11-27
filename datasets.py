@@ -117,6 +117,7 @@ class ImageFolder(data.Dataset):
     else:
       print('Generating  Index file %s...' % index_filename)
       imgs = make_dataset(root, class_to_idx)
+      os.makedirs(os.path.dirname(index_filename), exist_ok=True)
       np.savez_compressed(index_filename, **{'imgs' : imgs})
     if len(imgs) == 0:
       raise(RuntimeError("Found 0 images in subfolders of: " + root + "\n"

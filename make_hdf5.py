@@ -4,8 +4,11 @@
 import os
 import sys
 from argparse import ArgumentParser
+
+import logging
 from tqdm import tqdm, trange
 import h5py as h5
+import easydict
 
 import numpy as np
 import torch
@@ -16,6 +19,9 @@ import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
 import utils
+
+from template_lib.v2.config_cfgnode import update_parser_defaults_from_yaml, get_dict_str
+from template_lib.modelarts import modelarts_utils
 
 def prepare_parser():
   usage = 'Parser for ImageNet HDF5 scripts.'
@@ -72,6 +78,7 @@ def run(config):
   # 5000 / None                81/s
   # auto:(125,1,16,32) / None                         11/s                  61GB        
 
+
   print('Starting to load %s into an HDF5 file with chunk size %i and compression %s...' % (config['dataset'], config['chunk_size'], config['compression']))
   # Loop over train loader
   for i,(x,y) in enumerate(tqdm(train_loader)):
@@ -81,7 +88,7 @@ def run(config):
     y = y.numpy()
     # If we're on the first batch, prepare the hdf5
     if i==0:
-      with h5.File(config['data_root'] + '/ILSVRC%i.hdf5' % config['image_size'], 'w') as f:
+      with h5.File(config['saved_hdf5_file'], 'w') as f:
         print('Producing dataset of len %d' % len(train_loader.dataset))
         imgs_dset = f.create_dataset('imgs', x.shape,dtype='uint8', maxshape=(len(train_loader.dataset), 3, config['image_size'], config['image_size']),
                                      chunks=(config['chunk_size'], 3, config['image_size'], config['image_size']), compression=config['compression']) 
@@ -92,18 +99,23 @@ def run(config):
         labels_dset[...] = y
     # Else append to the hdf5
     else:
-      with h5.File(config['data_root'] + '/ILSVRC%i.hdf5' % config['image_size'], 'a') as f:
+      with h5.File(config['saved_hdf5_file'], 'a') as f:
         f['imgs'].resize(f['imgs'].shape[0] + x.shape[0], axis=0)
         f['imgs'][-x.shape[0]:] = x
         f['labels'].resize(f['labels'].shape[0] + y.shape[0], axis=0)
         f['labels'][-y.shape[0]:] = y
+  logging.getLogger('tl').info(f'Saved hdf5 to {config["saved_hdf5_file"]}')
 
 
 def main():
   # parse command line and run    
   parser = prepare_parser()
-  config = vars(parser.parse_args())
-  print(config)
+  update_parser_defaults_from_yaml(parser, use_cfg_as_args=True)
+
+  config = easydict.EasyDict(vars(parser.parse_args()))
+  print(get_dict_str(config))
+
+  modelarts_utils.prepare_dataset(config.get('modelarts_datasets', {}), global_cfg=config)
   run(config)
 
 if __name__ == '__main__':    

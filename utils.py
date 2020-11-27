@@ -27,6 +27,9 @@ from torch.utils.data import DataLoader
 
 import datasets as dset
 
+from template_lib.v2.config_cfgnode import global_cfg
+
+
 def prepare_parser():
   usage = 'Parser for all scripts.'
   parser = ArgumentParser(description=usage)
@@ -528,8 +531,8 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
                      **kwargs):
 
   # Append /FILENAME.hdf5 to root if using hdf5
-  data_root += '/%s' % root_dict[dataset]
-  print('Using dataset root location %s' % data_root)
+  # data_root += '/%s' % root_dict[dataset]
+  # print('Using dataset root location %s' % data_root)
 
   which_dataset = dset_dict[dataset]
   norm_mean = [0.5,0.5,0.5]
@@ -537,8 +540,9 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   image_size = imsize_dict[dataset]
   # For image folder datasets, name of the file where we store the precomputed
   # image locations to avoid having to walk the dirs every time we load.
-  dataset_kwargs = {'index_filename': '%s_imgs.npz' % dataset}
-  
+  # dataset_kwargs = {'index_filename': '%s_imgs.npz' % dataset, }
+  dataset_kwargs = {'index_filename': global_cfg.get('index_filename') }
+
   # HDF5 datasets have their own inbuilt transform, no need to train_transform  
   if 'hdf5' in dataset:
     train_transform = None
