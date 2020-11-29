@@ -599,7 +599,7 @@ def seed_rng(seed):
 def update_config_roots(config):
   if config['base_root']:
     print('Pegging all root folders to base root %s' % config['base_root'])
-    for key in ['data', 'weights', 'logs', 'samples']:
+    for key in ['weights', 'logs', 'samples']:
       config['%s_root' % key] = '%s/%s' % (config['base_root'], key)
   return config
 
@@ -609,7 +609,7 @@ def prepare_root(config):
   for key in ['weights_root', 'logs_root', 'samples_root']:
     if not os.path.exists(config[key]):
       print('Making directory %s for %s...' % (config[key], key))
-      os.mkdir(config[key])
+      os.makedirs(config[key], exist_ok=True)
 
 
 # Simple wrapper that applies EMA to a model. COuld be better done in 1.0 using

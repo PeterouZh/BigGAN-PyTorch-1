@@ -168,17 +168,41 @@ def test(G, D, G_ema, z_, y_, state_dict, config, sample, get_inception_metrics,
   IS_mean, IS_std, FID = get_inception_metrics(sample, 
                                                config['num_inception_images'],
                                                num_splits=10)
-  print('Itr %d: PYTORCH UNOFFICIAL Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' % (state_dict['itr'], IS_mean, IS_std, FID))
+  print('shown_images %d: PYTORCH UNOFFICIAL Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' \
+        % (state_dict['shown_images'], IS_mean, IS_std, FID))
   # If improved over previous best metric, save approrpiate copy
-  if ((config['which_best'] == 'IS' and IS_mean > state_dict['best_IS'])
-    or (config['which_best'] == 'FID' and FID < state_dict['best_FID'])):
-    print('%s improved over previous best, saving checkpoint...' % config['which_best'])
+  # if ((config['which_best'] == 'IS' and IS_mean > state_dict['best_IS'])
+  #   or (config['which_best'] == 'FID' and FID < state_dict['best_FID'])):
+  #   print('%s improved over previous best, saving checkpoint...' % config['which_best'])
+  #   utils.save_weights(G, D, state_dict, config['weights_root'],
+  #                      experiment_name, 'best%d' % state_dict['save_best_num'],
+  #                      G_ema if config['ema'] else None)
+  #   state_dict['save_best_num'] = (state_dict['save_best_num'] + 1 ) % config['num_best_copies']
+  # state_dict['best_IS'] = max(state_dict['best_IS'], IS_mean)
+  # state_dict['best_FID'] = min(state_dict['best_FID'], FID)
+  # # Log results to file
+  # test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean),
+  #              IS_std=float(IS_std), FID=float(FID))
+
+  if (IS_mean > state_dict['best_IS']):
+    state_dict['best_IS'] = max(state_dict['best_IS'], IS_mean)
+
+    print('IS improved over previous best, saving checkpoint...')
     utils.save_weights(G, D, state_dict, config['weights_root'],
-                       experiment_name, 'best%d' % state_dict['save_best_num'],
+                       experiment_name, 'best_IS%d' % state_dict['save_best_num'],
                        G_ema if config['ema'] else None)
-    state_dict['save_best_num'] = (state_dict['save_best_num'] + 1 ) % config['num_best_copies']
-  state_dict['best_IS'] = max(state_dict['best_IS'], IS_mean)
-  state_dict['best_FID'] = min(state_dict['best_FID'], FID)
-  # Log results to file
+    state_dict['save_best_num'] = (state_dict['save_best_num'] + 1) % config['num_best_copies']
+
+  if (FID < state_dict['best_FID']):
+    state_dict['best_FID'] = min(state_dict['best_FID'], FID)
+
+    print('FID improved over previous best, saving checkpoint...')
+    utils.save_weights(G, D, state_dict, config['weights_root'],
+                       experiment_name, 'best_FID%d' % state_dict['save_best_num'],
+                       G_ema if config['ema'] else None)
+    state_dict['save_best_num'] = (state_dict['save_best_num'] + 1) % config['num_best_copies']
+
+    # Log results to file
   test_log.log(itr=int(state_dict['itr']), IS_mean=float(IS_mean),
                IS_std=float(IS_std), FID=float(FID))
+  return IS_mean, IS_std, FID

@@ -10,9 +10,11 @@
 import os
 import functools
 import math
+
+import logging
 import numpy as np
 from tqdm import tqdm, trange
-
+import easydict
 
 import torch
 import torch.nn as nn
@@ -29,9 +31,16 @@ import losses
 import train_fns
 from sync_batchnorm import patch_replication_callback
 
+from template_lib.v2.config_cfgnode import update_parser_defaults_from_yaml, get_dict_str, global_cfg
+from template_lib.modelarts import modelarts_utils
+from template_lib.v2.logger.textlogger import global_textlogger, summary_dict2txtfig
+
+
 # The main training file. Config is a dictionary specifying the configuration
 # of this training run.
 def run(config):
+
+  logger = logging.getLogger('tl')
 
   # Update the config dict as necessary
   # This is for convenience, to add settings derived from the user-specified
@@ -88,13 +97,14 @@ def run(config):
     D = D.half()
     # Consider automatically reducing SN_eps?
   GD = model.G_D(G, D)
-  print(G)
-  print(D)
-  print('Number of params in G: {} D: {}'.format(
+  logger.info(G)
+  logger.info(D)
+  logger.info('Number of params in G: {} D: {}'.format(
     *[sum([p.data.nelement() for p in net.parameters()]) for net in [G,D]]))
   # Prepare state dict, which holds things like epoch # and itr #
   state_dict = {'itr': 0, 'epoch': 0, 'save_num': 0, 'save_best_num': 0,
-                'best_IS': 0, 'best_FID': 999999, 'config': config}
+                'best_IS': 0, 'best_FID': 999999, 'config': config,
+                'shown_images': 0}
 
   # If loading from a pre-trained model, load weights
   if config['resume']:
@@ -134,7 +144,8 @@ def run(config):
                                       'start_itr': state_dict['itr']})
 
   # Prepare inception metrics: FID and IS
-  get_inception_metrics = inception_utils.prepare_inception_metrics(config['dataset'], config['parallel'], config['no_fid'])
+  get_inception_metrics = inception_utils.prepare_inception_metrics(global_cfg.inception_file,
+                                                                    config['parallel'], config['no_fid'])
 
   # Prepare noise and randomly sampled label arrays
   # Allow for different batch sizes in G
@@ -165,7 +176,8 @@ def run(config):
   for epoch in range(state_dict['epoch'], config['num_epochs']):    
     # Which progressbar to use? TQDM or my own?
     if config['pbar'] == 'mine':
-      pbar = utils.progress(loaders[0],displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta')
+      pbar = utils.progress(loaders[0], desc=f"Epoch [{epoch}/{config['num_epochs']}], itr: ",
+                            displaytype='s1k' if config['use_multiepoch_sampler'] else 'eta')
     else:
       pbar = tqdm(loaders[0])
     for i, (x, y) in enumerate(pbar):
@@ -181,7 +193,10 @@ def run(config):
         x, y = x.to(device).half(), y.to(device)
       else:
         x, y = x.to(device), y.to(device)
+
       metrics = train(x, y)
+
+      state_dict['shown_images'] += D_batch_size
       train_log.log(itr=int(state_dict['itr']), **metrics)
       
       # Every sv_log_interval, log singular values
@@ -196,9 +211,9 @@ def run(config):
                            for key in metrics]), end=' ')
 
       # Save weights and copies as configured at specified interval
-      if not (state_dict['itr'] % config['save_every']):
+      if config['save_every'] > 0 and not (state_dict['itr'] % config['save_every']):
         if config['G_eval_mode']:
-          print('Switchin G to eval mode...')
+          print('\nSwitchin G to eval mode...')
           G.eval()
           if config['ema']:
             G_ema.eval()
@@ -206,12 +221,24 @@ def run(config):
                                   state_dict, config, experiment_name)
 
       # Test every specified interval
-      if not (state_dict['itr'] % config['test_every']):
+      if state_dict['itr'] == 1 or \
+            config['test_every'] > 0 and not (state_dict['itr'] % config['test_every']):
         if config['G_eval_mode']:
           print('Switchin G to eval mode...')
           G.eval()
-        train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
-                       get_inception_metrics, experiment_name, test_log)
+        logger.info(f"===Evaluation=== Training mode: G: {G.training}, G_ema: {G_ema.training}")
+        IS_mean, IS_std, FID = train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
+                                              get_inception_metrics, experiment_name, test_log)
+        logger.info(f"===End evaluation=== Training mode: G: {G.training}, G_ema: {G_ema.training}")
+        summary_d = {}
+        if not math.isnan(IS_mean):
+          summary_d['IS_mean'] = IS_mean
+          summary_d['IS_std'] = IS_std
+        if not math.isnan(FID):
+          summary_d['FID'] = FID
+        summary_dict2txtfig(summary_d, prefix='evaltorch', step=state_dict['shown_images'],
+                            textlogger=global_textlogger)
+        modelarts_utils.modelarts_sync_results_dir(cfg=config)
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
 
@@ -219,9 +246,20 @@ def run(config):
 def main():
   # parse command line and run
   parser = utils.prepare_parser()
-  config = vars(parser.parse_args())
-  print(config)
+  update_parser_defaults_from_yaml(parser)
+  config = easydict.EasyDict(vars(parser.parse_args()))
+
+  config['base_root'] = f"{config['tl_outdir']}/biggan"
+  print('config: \n' + get_dict_str(config))
+
+  modelarts_utils.setup_tl_outdir_obs(config)
+  modelarts_utils.modelarts_sync_results_dir(config, join=True)
+
+  modelarts_utils.prepare_dataset(config.get('modelarts_download', {}), global_cfg=config)
   run(config)
+  modelarts_utils.prepare_dataset(config.get('modelarts_upload', {}), global_cfg=config, download=False)
+
+  modelarts_utils.modelarts_sync_results_dir(config, join=True)
 
 if __name__ == '__main__':
   main()
