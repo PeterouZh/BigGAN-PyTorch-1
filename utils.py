@@ -541,7 +541,7 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   # For image folder datasets, name of the file where we store the precomputed
   # image locations to avoid having to walk the dirs every time we load.
   # dataset_kwargs = {'index_filename': '%s_imgs.npz' % dataset, }
-  dataset_kwargs = {'index_filename': global_cfg.get('index_filename') }
+  dataset_kwargs = {'index_filename': global_cfg.get('index_filename', '') }
 
   # HDF5 datasets have their own inbuilt transform, no need to train_transform  
   if 'hdf5' in dataset:

@@ -6,6 +6,7 @@
  Note that if you don't shuffle the data, the IS of true data will be under-
  estimated as it is label-ordered. By default, the data is not shuffled
  so as to reduce non-determinism. '''
+import logging
 import numpy as np
 import torch
 import torch.nn as nn
@@ -15,6 +16,11 @@ import utils
 import inception_utils
 from tqdm import tqdm, trange
 from argparse import ArgumentParser
+import easydict
+
+from template_lib.v2.config_cfgnode import update_parser_defaults_from_yaml, get_dict_str
+from template_lib.modelarts import modelarts_utils
+
 
 def prepare_parser():
   usage = 'Calculate and store inception metrics.'
@@ -47,6 +53,7 @@ def prepare_parser():
   return parser
 
 def run(config):
+  logger = logging.getLogger('tl')
   # Get loader
   config['drop_last'] = False
   loaders = utils.get_data_loaders(**config)
@@ -55,7 +62,10 @@ def run(config):
   net = inception_utils.load_inception_net(parallel=config['parallel'])
   pool, logits, labels = [], [], []
   device = 'cuda'
+  debug_num_batches = eval(config.debug_num_batches)
   for i, (x, y) in enumerate(tqdm(loaders[0])):
+    if i >= debug_num_batches:
+      break
     x = x.to(device)
     with torch.no_grad():
       pool_val, logits_val = net(x)
@@ -69,23 +79,32 @@ def run(config):
   # np.savez(config['dataset']+'_inception_activations.npz',
   #           {'pool': pool, 'logits': logits, 'labels': labels})
   # Calculate inception metrics and report them
-  print('Calculating inception metrics...')
+  logger.info('Calculating inception metrics...')
   IS_mean, IS_std = inception_utils.calculate_inception_score(logits)
-  print('Training data from dataset %s has IS of %5.5f +/- %5.5f' % (config['dataset'], IS_mean, IS_std))
+  logger.info('Training data from dataset %s has IS of %5.5f +/- %5.5f' % (config['dataset'], IS_mean, IS_std))
   # Prepare mu and sigma, save to disk. Remove "hdf5" by default 
   # (the FID code also knows to strip "hdf5")
-  print('Calculating means and covariances...')
+  logger.info('Calculating means and covariances...')
   mu, sigma = np.mean(pool, axis=0), np.cov(pool, rowvar=False)
-  print('Saving calculated means and covariances to disk...')
-  np.savez(config['dataset'].strip('_hdf5')+'_inception_moments.npz', **{'mu' : mu, 'sigma' : sigma})
+  logger.info('Saving calculated means and covariances to disk...')
+  np.savez(config['saved_inception_file'], **{'mu' : mu, 'sigma' : sigma})
+  logger.info(f"Saved to {config['saved_inception_file']}")
 
 def main():
   # parse command line    
   parser = prepare_parser()
-  config = vars(parser.parse_args())
-  print(config)
-  run(config)
+  update_parser_defaults_from_yaml(parser, use_cfg_as_args=True)
+  config = easydict.EasyDict(vars(parser.parse_args()))
+  print('config: \n' + get_dict_str(config))
 
+  modelarts_utils.setup_tl_outdir_obs(config)
+  modelarts_utils.modelarts_sync_results_dir(config, join=True)
+
+  modelarts_utils.prepare_dataset(config.get('modelarts_download', {}), global_cfg=config)
+  run(config)
+  modelarts_utils.prepare_dataset(config.get('modelarts_upload', {}), global_cfg=config, download=False)
+
+  modelarts_utils.modelarts_sync_results_dir(config, join=True)
 
 if __name__ == '__main__':    
     main()
