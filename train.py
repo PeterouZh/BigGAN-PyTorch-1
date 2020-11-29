@@ -238,7 +238,7 @@ def run(config):
           summary_d['FID'] = FID
         summary_dict2txtfig(summary_d, prefix='evaltorch', step=state_dict['shown_images'],
                             textlogger=global_textlogger)
-        modelarts_utils.modelarts_sync_results_dir(cfg=config)
+        modelarts_utils.modelarts_sync_results_dir(cfg=global_cfg)
     # Increment epoch counter at end of epoch
     state_dict['epoch'] += 1
 
@@ -252,14 +252,16 @@ def main():
   config['base_root'] = f"{config['tl_outdir']}/biggan"
   print('config: \n' + get_dict_str(config))
 
-  modelarts_utils.setup_tl_outdir_obs(config)
-  modelarts_utils.modelarts_sync_results_dir(config, join=True)
+  global_cfg.merge_from_dict(config)
 
-  modelarts_utils.prepare_dataset(config.get('modelarts_download', {}), global_cfg=config)
+  modelarts_utils.setup_tl_outdir_obs(global_cfg)
+  modelarts_utils.modelarts_sync_results_dir(global_cfg, join=True)
+
+  modelarts_utils.prepare_dataset(global_cfg.get('modelarts_download', {}), global_cfg=global_cfg)
   run(config)
-  modelarts_utils.prepare_dataset(config.get('modelarts_upload', {}), global_cfg=config, download=False)
+  modelarts_utils.prepare_dataset(global_cfg.get('modelarts_upload', {}), global_cfg=global_cfg, download=False)
 
-  modelarts_utils.modelarts_sync_results_dir(config, join=True)
+  modelarts_utils.modelarts_sync_results_dir(global_cfg, join=True)
 
 if __name__ == '__main__':
   main()
