@@ -113,6 +113,7 @@ def run(config):
                        config['weights_root'], experiment_name, 
                        config['load_weights'] if config['load_weights'] else None,
                        G_ema if config['ema'] else None)
+    print(f'Loaded state_dict: \n' + get_dict_str(state_dict))
 
   # If parallel, parallelize the GD module
   if config['parallel']:
