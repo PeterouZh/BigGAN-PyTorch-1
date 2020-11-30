@@ -12,6 +12,8 @@ import functools
 import math
 import copy
 import logging
+import pprint
+
 import numpy as np
 from tqdm import tqdm, trange
 import easydict
@@ -115,7 +117,8 @@ def run(config):
                        G_ema if config['ema'] else None)
     state_dict_pop_config = (copy.deepcopy(state_dict))
     del state_dict_pop_config['config']
-    print(f'Loaded state_dict: \n' + get_dict_str(state_dict_pop_config))
+    logger.info(f'Loaded state_dict: \n')
+    logger.info(pprint.pformat(state_dict_pop_config))
 
   # If parallel, parallelize the GD module
   if config['parallel']:
