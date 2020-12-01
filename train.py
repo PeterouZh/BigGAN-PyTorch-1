@@ -13,6 +13,7 @@ import math
 import copy
 import logging
 import pprint
+import importlib
 
 import numpy as np
 from tqdm import tqdm, trange
@@ -30,7 +31,7 @@ import torchvision
 import inception_utils
 import utils
 import losses
-import train_fns
+# import train_fns
 from sync_batchnorm import patch_replication_callback
 
 from template_lib.v2.config_cfgnode import update_parser_defaults_from_yaml, get_dict_str, global_cfg
@@ -70,7 +71,7 @@ def run(config):
   torch.backends.cudnn.benchmark = True
 
   # Import the model--this line allows us to dynamically select different files.
-  model = __import__(config['model'])
+  model = importlib.import_module(config['model'])
   experiment_name = (config['experiment_name'] if config['experiment_name']
                        else utils.name_from_config(config))
   print('Experiment name is %s' % experiment_name)
@@ -166,10 +167,16 @@ def run(config):
   fixed_y.sample_()
   # Loaders are loaded, prepare the training function
   if config['which_train_fn'] == 'GAN':
+    import train_fns
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
+                                            ema, state_dict, config)
+  elif config['which_train_fn'] == 'exp.omniGAN.train_fns':
+    train_fns = importlib.import_module(config['which_train_fn'])
+    train = train_fns.GAN_training_function(G, D, GD, z_, y_,
                                             ema, state_dict, config)
   # Else, assume debugging and use the dummy train fn
   else:
+    import train_fns
     train = train_fns.dummy_training_function()
   # Prepare Sample function for use with inception metrics
   sample = functools.partial(utils.sample,
