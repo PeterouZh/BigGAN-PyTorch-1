@@ -28,6 +28,7 @@ from torch.utils.data import DataLoader
 import datasets as dset
 
 from template_lib.v2.config_cfgnode import global_cfg
+from template_lib.utils import MaxToKeep
 
 
 def prepare_parser():
@@ -879,14 +880,19 @@ def sample(G, z_, y_, config):
     return G_z, y_
 
 
+max2keep_sample_dir = MaxToKeep(max_to_keep=5)
 # Sample function for sample sheets
 def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
                  samples_root, experiment_name, folder_number, z_=None):
   # Prepare sample directory
   if not os.path.isdir('%s/%s' % (samples_root, experiment_name)):
     os.mkdir('%s/%s' % (samples_root, experiment_name))
-  if not os.path.isdir('%s/%s/%d' % (samples_root, experiment_name, folder_number)):
-    os.mkdir('%s/%s/%d' % (samples_root, experiment_name, folder_number))
+  saved_dir = '%s/%s/%010d' % (samples_root, experiment_name, folder_number)
+  if not os.path.isdir(saved_dir):
+    os.mkdir(saved_dir)
+  max2keep_sample_dir.step(saved_dir)
+  if global_cfg.tl_debug:
+    return
   # loop over total number of sheets
   for i in range(num_classes // classes_per_sheet):
     ims = []
@@ -907,8 +913,7 @@ def sample_sheet(G, classes_per_sheet, num_classes, samples_per_class, parallel,
     out_ims = torch.stack(ims, 1).view(-1, ims[0].shape[1], ims[0].shape[2], 
                                        ims[0].shape[3]).data.float().cpu()
     # The path for the samples
-    image_filename = '%s/%s/%d/samples%d.jpg' % (samples_root, experiment_name, 
-                                                 folder_number, i)
+    image_filename = f'{saved_dir}/samples_{i:04d}.jpg'
     torchvision.utils.save_image(out_ims, image_filename,
                                  nrow=samples_per_class, normalize=True)
 
@@ -949,9 +954,9 @@ def interp_sheet(G, num_per_sheet, num_midpoints, num_classes, parallel,
     else:
       out_ims = G(zs, ys).data.cpu()
   interp_style = '' + ('Z' if not fix_z else '') + ('Y' if not fix_y else '')
-  image_filename = '%s/%s/%d/interp%s%d.jpg' % (samples_root, experiment_name,
-                                                folder_number, interp_style,
-                                                sheet_number)
+  image_filename = '%s/%s/%010d/interp%s_%d.jpg' % (samples_root, experiment_name,
+                                                    folder_number, interp_style,
+                                                    sheet_number)
   torchvision.utils.save_image(out_ims, image_filename,
                                nrow=num_midpoints + 2, normalize=True)
 

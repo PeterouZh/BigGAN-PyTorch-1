@@ -224,7 +224,8 @@ def run(config):
                            for key in metrics]), end=' ')
 
       # Save weights and copies as configured at specified interval
-      if config['save_every'] > 0 and not (state_dict['itr'] % config['save_every']):
+      if state_dict['itr'] == 1 or \
+            config['save_every'] > 0 and not (state_dict['itr'] % config['save_every']):
         if config['G_eval_mode']:
           print('\nSwitchin G to eval mode...')
           G.eval()
