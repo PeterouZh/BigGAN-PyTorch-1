@@ -17,6 +17,7 @@ import json
 import pickle
 from argparse import ArgumentParser
 import animal_hash
+import functools
 
 import torch
 import torch.nn as nn
@@ -584,7 +585,13 @@ def get_data_loaders(dataset, data_root=None, augment=False, batch_size=64,
   loaders = []   
   if use_multiepoch_sampler:
     print('Using multiepoch sampler from start_itr %d...' % start_itr)
-    loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory}
+    if 'collate_fn' in kwargs:
+      from exp.omni_inr_GAN.datasets import my_collate
+      collate_fn = functools.partial(my_collate, **kwargs['collate_fn'])
+    else:
+      collate_fn = None
+    loader_kwargs = {'num_workers': num_workers, 'pin_memory': pin_memory,
+                     'collate_fn': collate_fn}
     sampler = MultiEpochSampler(train_set, num_epochs, start_itr, batch_size)
     train_loader = DataLoader(train_set, batch_size=batch_size,
                               sampler=sampler, **loader_kwargs)
