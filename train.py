@@ -147,8 +147,9 @@ def run(config):
   # a full D iteration (regardless of number of D steps and accumulations)
   D_batch_size = (config['batch_size'] * config['num_D_steps']
                   * config['num_D_accumulations'])
-  loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
-                                      'start_itr': state_dict['itr']})
+  if not ('evaluation' in global_cfg and global_cfg.evaluation.eval):
+    loaders = utils.get_data_loaders(**{**config, 'batch_size': D_batch_size,
+                                        'start_itr': state_dict['itr']})
 
   # Prepare inception metrics: FID and IS
   get_inception_metrics = inception_utils.prepare_inception_metrics(global_cfg.inception_file,
@@ -183,6 +184,18 @@ def run(config):
                               G=(G_ema if config['ema'] and config['use_ema']
                                  else G),
                               z_=z_, y_=y_, config=config)
+
+  if ('evaluation' in global_cfg and global_cfg.evaluation.eval):
+    logger.info('Beginning evaluation ...')
+    cfg = global_cfg.evaluation
+    logger.info(f'Loading G_ema from {cfg.G_ema_model}')
+    G_ema.load_state_dict(torch.load(cfg.G_ema_model), strict=True)
+    G_ema.eval()
+    IS_mean, IS_std, FID = train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
+                                          get_inception_metrics, experiment_name, test_log)
+    logger.info('PYTORCH Inception Score is %3.3f +/- %3.3f, PYTORCH UNOFFICIAL FID is %5.4f' % (IS_mean, IS_std, FID))
+    exit(0)
+    pass
 
   print('Beginning training at epoch %d...' % state_dict['epoch'])
   # Train for specified number of epochs, although we mostly track G iterations.
@@ -263,8 +276,10 @@ def main():
   update_parser_defaults_from_yaml(parser)
   config = easydict.EasyDict(vars(parser.parse_args()))
 
+  logger = logging.getLogger('tl')
+
   config['base_root'] = f"{config['tl_outdir']}/biggan"
-  print('config: \n' + get_dict_str(config))
+  logger.info('config: \n' + get_dict_str(config))
 
   global_cfg.merge_from_dict(config)
 

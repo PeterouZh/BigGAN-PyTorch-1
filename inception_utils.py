@@ -10,7 +10,9 @@
     IS/FID code. You *must* use the TF model if you wish to report and compare
     numbers. This code tends to produce IS values that are 5-10% lower than
     those obtained through TF. 
-'''    
+'''
+import logging
+
 import numpy as np
 from scipy import linalg # For numpy FID
 import time
@@ -248,6 +250,8 @@ def calculate_inception_score(pred, num_splits=10):
 def accumulate_inception_activations(sample, net, num_inception_images=50000):
   pool, logits, labels = [], [], []
   while (torch.cat(logits, 0).shape[0] if len(logits) else 0) < num_inception_images:
+    if len(logits) > 0:
+      print("", end=f"\r{len(logits[0]) * len(logits)}/{num_inception_images}", flush=True)
     with torch.no_grad():
       images, labels_val = sample()
       pool_val, logits_val = net(images.float())
@@ -284,6 +288,7 @@ def prepare_inception_metrics(inception_file, parallel, no_fid=False):
   net = load_inception_net(parallel)
   def get_inception_metrics(sample, num_inception_images, num_splits=10, 
                             prints=True, use_torch=True):
+    logging.getLogger('tl').info(f'Evaluating FID and IS: num_inception_images={num_inception_images}')
     if prints:
       print('Gathering activations...')
     pool, logits, labels = accumulate_inception_activations(sample, net, num_inception_images)
