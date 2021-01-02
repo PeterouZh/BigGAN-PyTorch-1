@@ -84,18 +84,20 @@ def run(config):
   logger.info('Training data from dataset %s has IS of %5.5f +/- %5.5f' % (config['dataset'], IS_mean, IS_std))
   # Prepare mu and sigma, save to disk. Remove "hdf5" by default 
   # (the FID code also knows to strip "hdf5")
-  logger.info('Calculating means and covariances...')
-  mu, sigma = np.mean(pool, axis=0), np.cov(pool, rowvar=False)
-  logger.info('Saving calculated means and covariances to disk...')
-  np.savez(config['saved_inception_file'], **{'mu' : mu, 'sigma' : sigma})
-  logger.info(f"Saved to {config['saved_inception_file']}")
+  if not config.shuffle:
+    logger.info('Calculating means and covariances...')
+    mu, sigma = np.mean(pool, axis=0), np.cov(pool, rowvar=False)
+    logger.info('Saving calculated means and covariances to disk...')
+    np.savez(config['saved_inception_file'], **{'mu' : mu, 'sigma' : sigma})
+    logger.info(f"Saved to {config['saved_inception_file']}")
 
 def main():
   # parse command line    
   parser = prepare_parser()
   update_parser_defaults_from_yaml(parser, use_cfg_as_args=True)
   config = easydict.EasyDict(vars(parser.parse_args()))
-  print('config: \n' + get_dict_str(config))
+  logger = logging.getLogger('tl')
+  logger.info('config: \n' + get_dict_str(config))
 
   modelarts_utils.setup_tl_outdir_obs(config)
   modelarts_utils.modelarts_sync_results_dir(config, join=True)

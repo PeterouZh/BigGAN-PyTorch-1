@@ -20,7 +20,7 @@ from torch.utils.data import DataLoader
 
 import utils
 
-from template_lib.v2.config_cfgnode import update_parser_defaults_from_yaml, get_dict_str
+from template_lib.v2.config_cfgnode import update_parser_defaults_from_yaml, get_dict_str, global_cfg
 from template_lib.modelarts import modelarts_utils
 
 def prepare_parser():
@@ -115,14 +115,15 @@ def main():
   config = easydict.EasyDict(vars(parser.parse_args()))
   print(get_dict_str(config))
 
-  modelarts_utils.prepare_dataset(config.get('modelarts_datasets', {}), global_cfg=config)
-
-  modelarts_utils.setup_tl_outdir_obs(config)
-  modelarts_utils.modelarts_sync_results_dir(config, join=True)
+  modelarts_utils.setup_tl_outdir_obs(global_cfg)
+  modelarts_utils.modelarts_sync_results_dir(global_cfg, join=True)
+  modelarts_utils.prepare_dataset(global_cfg.get('modelarts_download', {}), global_cfg=global_cfg)
 
   run(config)
 
-  modelarts_utils.modelarts_sync_results_dir(config, join=True)
+  modelarts_utils.prepare_dataset(global_cfg.get('modelarts_upload', {}), global_cfg=global_cfg, download=False)
+  modelarts_utils.modelarts_sync_results_dir(global_cfg, join=True)
+  pass
 
 if __name__ == '__main__':    
   main()
