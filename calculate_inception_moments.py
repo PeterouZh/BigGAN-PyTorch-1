@@ -64,14 +64,14 @@ def run(config):
   device = 'cuda'
   debug_num_batches = eval(config.debug_num_batches)
   for i, (x, y) in enumerate(tqdm(loaders[0])):
-    if i >= debug_num_batches:
-      break
     x = x.to(device)
     with torch.no_grad():
       pool_val, logits_val = net(x)
       pool += [np.asarray(pool_val.cpu())]
       logits += [np.asarray(F.softmax(logits_val, 1).cpu())]
       labels += [np.asarray(y.cpu())]
+    if len(logits) * len(logits[0]) >= debug_num_batches:
+      break
 
   pool, logits, labels = [np.concatenate(item, 0) for item in [pool, logits, labels]]
   # uncomment to save pool, logits, and labels to disk
