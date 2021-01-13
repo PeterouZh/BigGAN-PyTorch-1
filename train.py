@@ -189,7 +189,7 @@ def run(config):
     logger.info('Beginning evaluation ...')
     cfg = global_cfg.evaluation
     logger.info(f'Loading G_ema from {cfg.G_ema_model}')
-    G_ema.load_state_dict(torch.load(cfg.G_ema_model), strict=True)
+    ret = G_ema.load_state_dict(torch.load(cfg.G_ema_model), strict=True)
     G_ema.eval()
     IS_mean, IS_std, FID = train_fns.test(G, D, G_ema, z_, y_, state_dict, config, sample,
                                           get_inception_metrics, experiment_name, test_log)
