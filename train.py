@@ -171,7 +171,7 @@ def run(config):
     import train_fns
     train = train_fns.GAN_training_function(G, D, GD, z_, y_, 
                                             ema, state_dict, config)
-  elif config['which_train_fn'] == 'exp.omniGAN.train_fns':
+  elif config['which_train_fn'] in ['exp.omniGAN.train_fns', 'exp.biggan.train_fns']:
     train_fns = importlib.import_module(config['which_train_fn'])
     train = train_fns.GAN_training_function(G, D, GD, z_, y_,
                                             ema, state_dict, config)
