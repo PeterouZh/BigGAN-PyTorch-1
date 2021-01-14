@@ -1110,7 +1110,8 @@ class Distribution(torch.Tensor):
   # in a distribution as well
   def to(self, *args, **kwargs):
     new_obj = Distribution(self)
-    new_obj.init_distribution(self.dist_type, **self.dist_kwargs)
+    if hasattr(self, 'dist_type'):
+      new_obj.init_distribution(self.dist_type, **self.dist_kwargs)
     new_obj.data = super().to(*args, **kwargs)    
     return new_obj
 
