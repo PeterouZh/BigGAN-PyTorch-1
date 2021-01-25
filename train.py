@@ -110,7 +110,7 @@ def run(config):
                 'shown_images': 0}
 
   # If loading from a pre-trained model, load weights
-  if config['resume']:
+  if global_cfg.tl_resume:
     print('Loading weights...')
     utils.load_weights(G, D, state_dict,
                        config['weights_root'], experiment_name, 
@@ -118,8 +118,7 @@ def run(config):
                        G_ema if config['ema'] else None)
     state_dict_pop_config = (copy.deepcopy(state_dict))
     del state_dict_pop_config['config']
-    logger.info(f'Loaded state_dict: \n')
-    logger.info(pprint.pformat(state_dict_pop_config))
+    logger.info(f'Loaded state_dict: \n{pprint.pformat(state_dict_pop_config)}')
 
   # If parallel, parallelize the GD module
   if config['parallel']:
@@ -249,7 +248,8 @@ def run(config):
 
       # Test every specified interval
       if state_dict['itr'] == 1 or \
-            config['test_every'] > 0 and not (state_dict['itr'] % config['test_every']):
+            config['test_every'] > 0 and not (state_dict['itr'] % config['test_every']) or \
+            global_cfg.tl_debug:
         if config['G_eval_mode']:
           print('Switchin G to eval mode...')
           G.eval()
@@ -284,7 +284,8 @@ def main():
   global_cfg.merge_from_dict(config)
 
   modelarts_utils.setup_tl_outdir_obs(global_cfg)
-  modelarts_utils.modelarts_sync_results_dir(global_cfg, join=True)
+  if not global_cfg.tl_resume:
+    modelarts_utils.modelarts_sync_results_dir(global_cfg, join=True)
 
   modelarts_utils.prepare_dataset(global_cfg.get('modelarts_download', {}), global_cfg=global_cfg)
   run(config)
